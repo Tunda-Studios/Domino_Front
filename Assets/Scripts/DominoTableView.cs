@@ -90,7 +90,6 @@ public class DominoTableView : MonoBehaviour
         }
 
         // Simple horizontal row of tiles
-        // adjust this depending on how your DominoPlayer stores hand data
         var hand = player.hand; // e.g. List<DominoTile> or List<int[]>
 
         for (int i = 0; i < hand.Count; i++)
@@ -101,12 +100,21 @@ public class DominoTableView : MonoBehaviour
             tileObj.name = $"Tile_{player.userId}_{i}";
             tileObj.transform.localPosition = new Vector3(i * tileSpacing, 0f, 0f);
 
-            // TODO: if face-up and you have a script like DominoVisual, set its values:
-            // if (isLocal)
-            // {
-            //     var visual = tileObj.GetComponent<DominoVisual>();
-            //     visual.SetValues(hand[i].a, hand[i].b);
-            // }
+            if (isLocal)
+            {
+                var ui = tileObj.GetComponent<DominoTileUI>();
+                
+                if(ui!= null)
+                {
+                    int left = hand[i][0];
+                    int right = hand[i][1];
+                    Sprite sprite = DominoSpriteDatabaseLoader.Instance.GetTileSprite(left, right);
+
+                    ui.Setup(left, right, sprite);
+                }
+            }
+           
+           
         }
 
         Debug.Log($"Rendered {hand.Count} tiles for {player.userId} at {anchor.name}, isLocal={isLocal}");

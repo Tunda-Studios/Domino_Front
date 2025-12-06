@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using Newtonsoft.Json;
 
 
 public class DominoGameController : MonoBehaviour
@@ -14,12 +15,16 @@ public class DominoGameController : MonoBehaviour
 
     [Header("Debug")]
     public string gameId;
+
     public DominoGame currentGame;
 
     private Coroutine pollRoutine;
 
+    public DominoTableView tableView;
+
     private async void Start()
     {
+        
         // For now, we can auto-create a test game.
         // Remove this in production and drive from UI.
         if (apiClient == null)
@@ -28,7 +33,6 @@ public class DominoGameController : MonoBehaviour
         }
 
         Debug.Log("api client created");
-        LoadMyGames();
         // Example: create a test game and start it
         // await CreateAndStartTestGame();
         await LoadAndLogGames();
@@ -41,15 +45,24 @@ public class DominoGameController : MonoBehaviour
 
     private async Task LoadAndLogGames()
     {
+        
         string res = await apiClient.Get("/api/games");
-        Debug.Log(await apiClient.Get("/api/games"));
+        Debug.Log(res);
         if (string.IsNullOrEmpty(res))
         {
             Debug.LogError("[Lobby] Failed to load games.");
             return;
         }
-        Debug.Log(res);
-        DominoGameListResponse list = JsonUtility.FromJson<DominoGameListResponse>(res);
+
+        DominoGameListResponse list = JsonConvert.DeserializeObject<DominoGameListResponse>(res);
+
+        foreach (var g in list.games)
+        {
+            Debug.Log("Game ID: " + g._id);
+        }
+        Debug.Log("the game is " + list.games[0]);
+
+        DominoGame game = list.games[0];
         if (list == null || list.games == null)
         {
             Debug.LogWarning("[Lobby] No games found or parse failed.");
@@ -71,6 +84,12 @@ public class DominoGameController : MonoBehaviour
                 $"Players: {g.players?.Count ?? 0} | {winnerInfo}"
             );
         }
+
+        // 1) Assign the game to the table view
+        tableView.currentGame = game;
+        tableView.myUserId = "u1";
+        
+        tableView.BuildTable();
     }
 
     // ---- Play-at-your-pace polling ----
