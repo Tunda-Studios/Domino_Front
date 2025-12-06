@@ -10,11 +10,17 @@ public class DominoTableView : MonoBehaviour
     public Transform topHandAnchor;
     public Transform leftHandAnchor;
 
+    public Transform boardAnchor;
+
     [Header("Prefabs")]
     public GameObject dominoFacePrefab;  
-    public GameObject dominoBackPrefab;   
+    public GameObject dominoBackPrefab;
 
-    
+    [Header("Default Skin")]
+    public DominoSpriteDatabase defaultSkin;
+
+
+
     public string myUserId = "u1";       
     public DominoGame currentGame;        
 
@@ -30,6 +36,13 @@ public class DominoTableView : MonoBehaviour
         }
 
         var players = currentGame.players;
+
+        //assign default skin for now - will be remove
+        foreach (var p in players)
+        {
+            if (p.selectedSkin == null)
+                p.selectedSkin = defaultSkin;
+        }
 
         // 1) Find my index in the server's player list
         int myIndex = players.FindIndex(p => p.userId == myUserId);
@@ -99,19 +112,25 @@ public class DominoTableView : MonoBehaviour
             GameObject tileObj = Instantiate(prefabToUse, anchor);
             tileObj.name = $"Tile_{player.userId}_{i}";
             tileObj.transform.localPosition = new Vector3(i * tileSpacing, 0f, 0f);
-
+          
             if (isLocal)
             {
-                var ui = tileObj.GetComponent<DominoTileUI>();
+               
+                int left = hand[i][0];
                 
-                if(ui!= null)
+                int right = hand[i][1];
+               
+                DominoSpriteDatabase skin = player.selectedSkin;
+                Debug.Log("reached here" + skin);
+                Sprite sprite = skin.GetTileSprite(left, right);
+               
+                var ui = tileObj.GetComponent<DominoTileUI>();
+               
+                if (ui != null)
                 {
-                    int left = hand[i][0];
-                    int right = hand[i][1];
-                    Sprite sprite = DominoSpriteDatabaseLoader.Instance.GetTileSprite(left, right);
-
                     ui.Setup(left, right, sprite);
                 }
+                
             }
            
            
@@ -119,5 +138,17 @@ public class DominoTableView : MonoBehaviour
 
         Debug.Log($"Rendered {hand.Count} tiles for {player.userId} at {anchor.name}, isLocal={isLocal}");
 
+    }
+
+    public void SpawnBoardTile(DominoPlayer owner, int left, int right, Vector3 position)
+    {
+        GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor);
+        tileObj.transform.localPosition = position;
+
+        DominoSpriteDatabase skin = owner.selectedSkin;
+        Sprite sprite = skin.GetTileSprite(left, right);
+
+        DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
+        ui.Setup(left, right, sprite);
     }
 }

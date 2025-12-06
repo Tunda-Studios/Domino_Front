@@ -10,5 +10,6 @@ public class DominoPlayer
     public List<int[]> hand;
     public int wins;
     public int points;
-    public bool isActive;   
+    public bool isActive;
+    public DominoSpriteDatabase selectedSkin;
 }
