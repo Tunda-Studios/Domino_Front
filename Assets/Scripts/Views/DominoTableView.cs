@@ -5,12 +5,12 @@ using UnityEngine;
 public class DominoTableView : MonoBehaviour
 {
     [Header("Anchors (set in Inspector)")]
-    public Transform bottomHandAnchor;
-    public Transform rightHandAnchor;
-    public Transform topHandAnchor;
-    public Transform leftHandAnchor;
+    public RectTransform bottomHandAnchor;
+    public RectTransform rightHandAnchor;
+    public RectTransform topHandAnchor;
+    public RectTransform leftHandAnchor;
 
-    public Transform boardAnchor;
+    public RectTransform boardAnchor;
 
     [Header("Prefabs")]
     public GameObject dominoFacePrefab;  
@@ -25,7 +25,7 @@ public class DominoTableView : MonoBehaviour
     public DominoGame currentGame;        
 
     [Header("Layout")]
-    public float tileSpacing = 1.2f;
+    public float tileSpacing = 120f;
 
     public void BuildTable()
     {
@@ -84,7 +84,11 @@ public class DominoTableView : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+        // Press SPACE to spawn a tile on the board
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            TestSpawnBoardTile();
+        }
     }
 
     //Defined render seat
@@ -96,54 +100,49 @@ public class DominoTableView : MonoBehaviour
             return;
         }
 
-        // Clear any previous children under this anchor
+        // Clear old tiles
         for (int i = anchor.childCount - 1; i >= 0; i--)
-        {
             Destroy(anchor.GetChild(i).gameObject);
-        }
 
-        // Simple horizontal row of tiles
-        var hand = player.hand; // e.g. List<DominoTile> or List<int[]>
+        var hand = player.hand;
+
+        // Center the row
+        float totalWidth = (hand.Count - 1) * tileSpacing;
+        float startX = -totalWidth / 2f;
 
         for (int i = 0; i < hand.Count; i++)
         {
-            GameObject prefabToUse = isLocal ? dominoFacePrefab : dominoBackPrefab;
+            GameObject prefab = isLocal ? dominoFacePrefab : dominoBackPrefab;
+            GameObject tileObj = Instantiate(prefab, anchor);
 
-            GameObject tileObj = Instantiate(prefabToUse, anchor);
+            RectTransform rt = tileObj.GetComponent<RectTransform>();
+            if (rt == null)
+                rt = tileObj.AddComponent<RectTransform>();
+
+            rt.anchoredPosition = new Vector2(startX + i * tileSpacing, 0f);
+
             tileObj.name = $"Tile_{player.userId}_{i}";
-            tileObj.transform.localPosition = new Vector3(i * tileSpacing, 0f, 0f);
-          
+
             if (isLocal)
             {
-               
                 int left = hand[i][0];
-                
                 int right = hand[i][1];
-               
+
                 DominoSpriteDatabase skin = player.selectedSkin;
-                Debug.Log("reached here" + skin);
                 Sprite sprite = skin.GetTileSprite(left, right);
-               
-                var ui = tileObj.GetComponent<DominoTileUI>();
-               
+
+                DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
                 if (ui != null)
-                {
                     ui.Setup(left, right, sprite);
-                }
-                
             }
-           
-           
         }
-
-        Debug.Log($"Rendered {hand.Count} tiles for {player.userId} at {anchor.name}, isLocal={isLocal}");
-
     }
 
     public void SpawnBoardTile(DominoPlayer owner, int left, int right, Vector3 position)
     {
         GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor);
-        tileObj.transform.localPosition = position;
+        RectTransform rt = tileObj.GetComponent<RectTransform>();
+        rt.anchoredPosition = new Vector2(position.x, position.y);
 
         DominoSpriteDatabase skin = owner.selectedSkin;
         Sprite sprite = skin.GetTileSprite(left, right);
@@ -151,4 +150,25 @@ public class DominoTableView : MonoBehaviour
         DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
         ui.Setup(left, right, sprite);
     }
+
+    public void TestSpawnBoardTile()
+    {
+        // Example test values
+        int left = 6;
+        int right = 4;
+
+        // Example position inside the board
+        Vector2 pos = new Vector2(0, 0); // center of board
+
+        // Fake owner: local player's skin
+        DominoPlayer fakeOwner = new DominoPlayer
+        {
+            selectedSkin = defaultSkin
+        };
+
+        SpawnBoardTile(fakeOwner, left, right, pos);
+
+        Debug.Log($"Spawned test board tile [{left}|{right}] at {pos}");
+    }
+
 }
