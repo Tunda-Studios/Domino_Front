@@ -7,9 +7,13 @@ public class DominoPlayer
 {
     public string userId;
     public string displayName;
-    public List<int[]> hand;
+
     public int wins;
     public int points;
+    public int score;
+
     public bool isActive;
+    public List<int[]> hand;
+
     public DominoSpriteDatabase selectedSkin;
 }

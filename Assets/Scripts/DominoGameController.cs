@@ -1,8 +1,10 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using Newtonsoft.Json;
+using NativeWebSocket;
+using System.Text;
 
 
 public class DominoGameController : MonoBehaviour
@@ -12,37 +14,127 @@ public class DominoGameController : MonoBehaviour
 
     [Header("Settings")]
     public float pollInterval = 5f;  // seconds between refreshes
+    private WebSocket websocket;
+    private Coroutine pollRoutine;
+    public bool enablePolling = true;
 
     [Header("Debug")]
     public string gameId;
 
     public DominoGame currentGame;
 
-    private Coroutine pollRoutine;
-
     public DominoTableView tableView;
+
+    private bool wsConnected = false;
 
     private async void Start()
     {
-        
-        // For now, we can auto-create a test game.
-        // Remove this in production and drive from UI.
+
         if (apiClient == null)
-        {
             apiClient = FindObjectOfType<ApiClient>();
+
+        Debug.Log("DominoGameController started.");
+
+        // 1) Load games (for now just first one)
+        await LoadMyGames();
+
+        // 2) Connect WS
+        await ConnectWebSocket();
+
+        // 3) Join the WS room for this game
+        if (!string.IsNullOrEmpty(gameId))
+            await JoinRoom(gameId);
+
+        // 4) Poll in background as fallback
+        if (enablePolling)
+            StartPolling();
+    }
+
+    public async Task LoadMyGames()
+    {
+        string res = await apiClient.Get("/api/games");
+        if (string.IsNullOrEmpty(res))
+        {
+            Debug.LogError("Failed to load games.");
+            return;
         }
 
-        Debug.Log("api client created");
-        // Example: create a test game and start it
-        // await CreateAndStartTestGame();
-        await LoadAndLogGames();
+        DominoGameListResponse list = JsonConvert.DeserializeObject<DominoGameListResponse>(res);
+        if (list == null || list.games == null || list.games.Count == 0)
+        {
+            Debug.Log("[Lobby] No games found.");
+            return;
+        }
+
+        // Pick first game for demo
+        currentGame = list.games[0];
+        gameId = currentGame._id;
+
+        Debug.Log("Loaded game: " + gameId);
+
+        // Render table
+        tableView.currentGame = currentGame;
+        tableView.myUserId = "u1";
+        tableView.BuildTable();
     }
 
-    public async void LoadMyGames()
+    private async Task ConnectWebSocket()
     {
-        await LoadAndLogGames();
+        websocket = new WebSocket("ws://localhost:3000");
+
+        websocket.OnOpen += () =>
+        {
+            Debug.Log("WS Connected.");
+            wsConnected = true;
+        };
+
+        websocket.OnClose += (e) =>
+        {
+            Debug.Log("WS Closed.");
+            wsConnected = false;
+        };
+
+        websocket.OnError += (e) =>
+        {
+            Debug.Log("WS Error: " + e);
+        };
+
+        websocket.OnMessage += (bytes) =>
+        {
+            string msg = Encoding.UTF8.GetString(bytes);
+            Debug.Log("WS Message Received: " + msg);
+
+            var packet = JsonConvert.DeserializeObject<GamePacket>(msg);
+
+            if (packet.type == "game_update" && packet.game._id == gameId)
+            {
+                Debug.Log("WS → Updating board for game " + gameId);
+                ApplyGameState(packet.game);
+            }
+        };
+
+        await websocket.Connect();
     }
 
+    private async Task JoinRoom(string gameId)
+    {
+        if (!wsConnected)
+        {
+            Debug.LogWarning("WS not connected yet. Cannot join room.");
+            return;
+        }
+
+        var obj = new
+        {
+            type = "join_room",
+            gameId = gameId
+        };
+
+        string json = JsonConvert.SerializeObject(obj);
+        await websocket.SendText(json);
+
+        Debug.Log("Joined WS room for game " + gameId);
+    }
     private async Task LoadAndLogGames()
     {
         
@@ -100,42 +192,21 @@ public class DominoGameController : MonoBehaviour
         pollRoutine = StartCoroutine(PollLoop());
     }
 
+
+
+
     private IEnumerator PollLoop()
     {
         while (!string.IsNullOrEmpty(gameId))
         {
-            var t = RefreshGame();
-            while (!t.IsCompleted) yield return null;
+            if (!wsConnected) // use polling ONLY if WS isn't active
+            {
+                var task = RefreshGame();
+                while (!task.IsCompleted) yield return null;
+            }
+
             yield return new WaitForSeconds(pollInterval);
         }
-    }
-
-    // ---- Backend interactions ----
-
-    public async Task CreateAndStartTestGame()
-    {
-        var req = new CreateGameRequest
-        {
-            mode = "cutthroat",
-            displayName = "Rachad", // later from login
-            maxPlayers = 4
-        };
-
-        string res = await apiClient.Post("/api/games", JsonUtility.ToJson(req));
-        if (string.IsNullOrEmpty(res)) return;
-
-        currentGame = JsonUtility.FromJson<DominoGame>(res);
-        gameId = currentGame._id;
-        Debug.Log($"[Unity] Created game {gameId}");
-
-        // start first round
-        res = await apiClient.Post($"/api/games/{gameId}/start", "{}");
-        if (string.IsNullOrEmpty(res)) return;
-
-        currentGame = JsonUtility.FromJson<DominoGame>(res);
-        Debug.Log($"[Unity] Started round {currentGame.roundNumber}");
-
-        StartPolling();
     }
 
     public async Task RefreshGame()
@@ -145,18 +216,17 @@ public class DominoGameController : MonoBehaviour
         string res = await apiClient.Get($"/api/games/{gameId}");
         if (string.IsNullOrEmpty(res)) return;
 
-        currentGame = JsonUtility.FromJson<DominoGame>(res);
-
-        Debug.Log(
-            $"[Unity] Game {gameId} | Status: {currentGame.status} | " +
-            $"Round: {currentGame.roundNumber} | TargetWins: {currentGame.targetWins}"
-        );
-
-        // TODO: update your UI � hands, board, current player, wins etc.
-        // This is where you'd re-render domino pieces.
+        var latest = JsonConvert.DeserializeObject<DominoGame>(res);
+        ApplyGameState(latest);
     }
 
-    // Example: click handler that plays *first tile* from your hand to the right
+    private void ApplyGameState(DominoGame newState)
+    {
+        currentGame = newState;
+        tableView.currentGame = newState;
+        tableView.BuildTable();
+    }
+
     public async Task PlayFirstTileRight()
     {
         if (currentGame == null || currentGame.players == null) return;
@@ -177,30 +247,77 @@ public class DominoGameController : MonoBehaviour
             tile = tile,
             end = "right"
         };
+        string body = JsonConvert.SerializeObject(req);
 
-        string res = await apiClient.Post($"/api/games/{gameId}/move", JsonUtility.ToJson(req));
+        string res = await apiClient.Post(
+            $"/api/games/{gameId}/move",
+            body
+        );
+
         if (string.IsNullOrEmpty(res)) return;
 
-        currentGame = JsonUtility.FromJson<DominoGame>(res);
+        currentGame = JsonConvert.DeserializeObject<DominoGame>(res);
 
         Debug.Log($"[Unity] Played [{tile[0]},{tile[1]}].");
     }
 
-    // Example: pass / say "I can't play"
     public async Task PassTurn()
     {
-        if (string.IsNullOrEmpty(gameId)) return;
+        var req = new MoveRequest { tile = null, end = "right" };
+        string res = await apiClient.Post($"/api/games/{gameId}/move", JsonConvert.SerializeObject(req));
 
-        var req = new MoveRequest
+        if (!string.IsNullOrEmpty(res))
         {
-            tile = null,
-            end = "right"  // ignored by server on pass
+            var updated = JsonConvert.DeserializeObject<DominoGame>(res);
+            ApplyGameState(updated);
+        }
+    }
+
+
+    // ---- Backend interactions ----
+
+    public async Task CreateAndStartTestGame()
+    {
+        var req = new CreateGameRequest
+        {
+            mode = "cutthroat",
+            displayName = "Rachad", // later from login
+            maxPlayers = 4
         };
 
-        string res = await apiClient.Post($"/api/games/{gameId}/move", JsonUtility.ToJson(req));
+        string res = await apiClient.Post("/api/games", JsonConvert.SerializeObject(req));
         if (string.IsNullOrEmpty(res)) return;
 
-        currentGame = JsonUtility.FromJson<DominoGame>(res);
-        Debug.Log("[Unity] Passed turn.");
+        currentGame = JsonConvert.DeserializeObject<DominoGame>(res);
+        gameId = currentGame._id;
+        Debug.Log($"[Unity] Created game {gameId}");
+
+        // start first round
+        res = await apiClient.Post(
+            $"/api/games/{gameId}/start",
+            JsonConvert.SerializeObject(new { })
+        );
+
+        if (string.IsNullOrEmpty(res)) return;
+
+        currentGame = JsonConvert.DeserializeObject<DominoGame>(res);
+        Debug.Log($"[Unity] Started round {currentGame.roundNumber}");
+
+        StartPolling();
+
+    }
+
+
+
+
+
+    void Update()
+    {
+        websocket?.DispatchMessageQueue();
+    }
+
+    private async void OnDestroy()
+    {
+        await websocket.Close();
     }
 }

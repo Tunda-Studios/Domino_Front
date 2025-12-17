@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -18,6 +18,9 @@ public class DominoTableView : MonoBehaviour
 
     [Header("Default Skin")]
     public DominoSpriteDatabase defaultSkin;
+
+    [Header("UNITY TEST BOARD")]
+    public List<int[]> testBoard = new List<int[]>();
 
 
 
@@ -78,13 +81,14 @@ public class DominoTableView : MonoBehaviour
         // Start is called before the first frame update
         void Start()
     {
-        
+        InitTestBoard();
     }
 
     // Update is called once per frame
     void Update()
     {
-        // Press SPACE to spawn a tile on the board
+        // Press
+        // to spawn a tile on the board
         if (Input.GetKeyDown(KeyCode.Space))
         {
             TestSpawnBoardTile();
@@ -142,6 +146,11 @@ public class DominoTableView : MonoBehaviour
     {
         GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor);
         RectTransform rt = tileObj.GetComponent<RectTransform>();
+
+        if (rt == null)
+        {
+            rt = tileObj.AddComponent<RectTransform>();
+        }
         rt.anchoredPosition = new Vector2(position.x, position.y);
 
         DominoSpriteDatabase skin = owner.selectedSkin;
@@ -170,5 +179,116 @@ public class DominoTableView : MonoBehaviour
 
         Debug.Log($"Spawned test board tile [{left}|{right}] at {pos}");
     }
+
+    public void InitTestBoard()
+    {
+        testBoard.Clear();
+
+        // Example starting board
+        testBoard.Add(new int[] { 5, 6 });
+        testBoard.Add(new int[] { 6, 3 });
+        testBoard.Add(new int[] { 3, 5 });
+
+        Debug.Log("Initialized test board");
+        PrintBoard();
+
+        RenderBoard();
+    }
+
+    void PrintBoard()
+    {
+        string s = "BOARD: ";
+        foreach (var t in testBoard)
+            s += $"[{t[0]}|{t[1]}] ";
+        Debug.Log(s);
+    }
+
+    public void RenderBoard()
+    {
+        if (boardAnchor == null)
+        {
+            Debug.LogError("BoardAnchor is not set!");
+            return;
+        }
+
+        // Clear existing board tiles
+        for (int i = boardAnchor.childCount - 1; i >= 0; i--)
+        {
+            Destroy(boardAnchor.GetChild(i).gameObject);
+        }
+
+        if (testBoard == null || testBoard.Count == 0)
+        {
+            Debug.Log("RenderBoard: testBoard empty");
+            return;
+        }
+
+        // Center the board horizontally
+        float totalWidth = (testBoard.Count - 1) * tileSpacing;
+        float startX = -totalWidth / 2f;
+
+        // Fake owner just to get a skin
+        DominoPlayer fakeOwner = new DominoPlayer
+        {
+            selectedSkin = defaultSkin
+        };
+
+        for (int i = 0; i < testBoard.Count; i++)
+        {
+            int left = testBoard[i][0];
+            int right = testBoard[i][1];
+
+            Vector2 pos = new Vector2(startX + i * tileSpacing, 0f);
+
+            SpawnBoardTile(fakeOwner, left, right, pos);
+        }
+    }
+
+    public void TestPlaceLeft()
+    {
+        int[] tile = new int[] { 5, 2 };
+
+        int leftValue = testBoard[0][0];
+
+        if (tile[0] != leftValue && tile[1] != leftValue)
+        {
+            Debug.Log("❌ Cannot play [5|2] on LEFT");
+            return;
+        }
+
+        // Flip if needed
+        if (tile[1] == leftValue)
+            tile = new int[] { tile[1], tile[0] };
+
+        testBoard.Insert(0, tile);
+
+        Debug.Log("✅ Played [5|2] on LEFT");
+        PrintBoard();
+        RenderBoard();
+    }
+
+    public void TestPlaceRight()
+    {
+        int[] tile = new int[] { 5, 2 };
+
+        int rightValue = testBoard[testBoard.Count - 1][1];
+
+        if (tile[0] != rightValue && tile[1] != rightValue)
+        {
+            Debug.Log("❌ Cannot play [5|2] on RIGHT");
+            return;
+        }
+
+        // Flip if needed
+        if (tile[0] != rightValue)
+            tile = new int[] { tile[1], tile[0] };
+
+        testBoard.Add(tile);
+
+        Debug.Log("✅ Played [5|2] on RIGHT");
+        PrintBoard();
+        RenderBoard();
+    }
+
 
 }
