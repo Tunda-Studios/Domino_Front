@@ -9,10 +9,13 @@ public class LobbyHandController : MonoBehaviour
 
     [Header("UI")]
     public Transform handContainer;
-    public GameObject dominoPrefab;
+    public GameObject dominoFacePrefab;
 
     [Header("Config")]
     public string myUserId = "u1";
+
+    [Header("Skin")]
+    public DominoSpriteDatabase defaultSkin;
 
     private DominoGame _game;
     private DominoPlayer _me;
@@ -29,55 +32,38 @@ public class LobbyHandController : MonoBehaviour
             return;
         }
 
-        // Clear current hand
-        foreach (Transform child in handContainer)
-            Destroy(child.gameObject);
+        if (_me.selectedSkin == null)
+            _me.selectedSkin = defaultSkin;
 
-        // Spawn one prefab per domino in my hand
-        foreach (var values in _me.hand)
+        RenderHand(_me.hand, _me.selectedSkin);
+    }
+
+    private void RenderHand(List<int[]> hand, DominoSpriteDatabase skin)
+    {
+        ClearHand();
+
+        foreach (var values in hand)
         {
             int left = values[0];
             int right = values[1];
 
-            var go = Instantiate(dominoPrefab, handContainer);
-            var ui = go.GetComponent<DominoTileUI>();
+            GameObject go = Instantiate(dominoFacePrefab, handContainer);
+            DominoTileUI ui = go.GetComponent<DominoTileUI>();
 
-            Sprite sprite = GetDominoSprite(left, right);
-            ui.Setup(left, right, sprite);
+            ui.Setup(left, right, skin);
         }
     }
 
-
-    // Map (left,right) → sprite index 0..27
-    private Sprite GetDominoSprite(int left, int right)
+    private void ClearHand()
     {
-        int a = Mathf.Min(left, right);
-        int b = Mathf.Max(left, right);
-
-        // Index formula assuming order:
-        // 0: 0-0
-        // 1: 0-1
-        // 2: 0-2
-        // ...
-        // 6: 0-6
-        // 7: 1-1
-        // 8: 1-2
-        // ...
-        // 27: 6-6
-        int index = a * 7 - (a * (a - 1)) / 2 + (b - a);
-
-        if (index < 0 || index >= dominoSprites.Length)
-        {
-            Debug.LogError($"Domino sprite index out of range for {a}|{b}: {index}");
-            return null;
-        }
-
-        return dominoSprites[index];
+        foreach (Transform child in handContainer)
+            Destroy(child.gameObject);
     }
-    // Start is called before the first frame update
-    void Start()
+
+    private void Start()
     {
-        var hand = new List<int[]>
+        // Local test without server
+        var testHand = new List<int[]>
         {
             new[] {2,3},
             new[] {5,5},
@@ -88,30 +74,8 @@ public class LobbyHandController : MonoBehaviour
             new[] {2,6}
         };
 
-        DisplayHand(hand);
+        RenderHand(testHand, defaultSkin);
     }
 
-    void DisplayHand(List<int[]> hand)
-    {
-        foreach (Transform child in handContainer)
-            Destroy(child.gameObject);
 
-        foreach (var tile in hand)
-        {
-            int left = tile[0];
-            int right = tile[1];
-
-            Sprite sprite = GetDominoSprite(left, right);
-
-            GameObject go = Instantiate(dominoPrefab, handContainer);
-            var ui = go.GetComponent<DominoTileUI>();
-            ui.Setup(left, right, sprite);
-        }
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }

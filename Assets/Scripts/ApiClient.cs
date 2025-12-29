@@ -7,7 +7,7 @@ public class ApiClient : MonoBehaviour
 {
     [Header("Server Config")]
     [SerializeField] private string baseUrl = "http://localhost:3001"; // change when hosting
-    [SerializeField] private string userId;            
+    [SerializeField] public string userId;            
 
     public void SetUserId(string newUserId)
     {

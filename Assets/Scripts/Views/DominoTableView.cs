@@ -32,9 +32,13 @@ public class DominoTableView : MonoBehaviour
 
     public void BuildTable()
     {
-        if (currentGame == null || currentGame.players == null || currentGame.players.Count == 0)
+        if (currentGame == null ||
+    currentGame.players == null ||
+    currentGame.players.Count == 0)
         {
-            Debug.LogError("No game or players set on DominoTableView");
+            Debug.LogWarning(
+                "DominoTableView.BuildTable skipped: game not ready (players missing)"
+            );
             return;
         }
 
@@ -137,7 +141,7 @@ public class DominoTableView : MonoBehaviour
 
                 DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
                 if (ui != null)
-                    ui.Setup(left, right, sprite);
+                    ui.Setup(left, right, player.selectedSkin);
             }
         }
     }
@@ -157,7 +161,7 @@ public class DominoTableView : MonoBehaviour
         Sprite sprite = skin.GetTileSprite(left, right);
 
         DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
-        ui.Setup(left, right, sprite);
+        ui.Setup(left, right, owner.selectedSkin);
     }
 
     public void TestSpawnBoardTile()

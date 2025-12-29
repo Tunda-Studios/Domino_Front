@@ -7,18 +7,18 @@ using UnityEngine;
 
 public class WebSocketClient : MonoBehaviour
 {
-    public string serverUrl = "ws://localhost:8080";
-    public DominoTableView tableView;
-    public string myUserId = "u1";
-
+    public event System.Action<DominoGame> OnGameReceived;
+    private string serverUrl = "ws://localhost:3001";
+    
     private WebSocket ws;
 
     // Start is called before the first frame update
     async void Start()
     {
-        tableView.myUserId = myUserId;
+        
 
         ws = new WebSocket(serverUrl);
+        Debug.Log(ws);
         ws.OnOpen += () => Debug.Log("WS connected");
         ws.OnError += (e) => Debug.LogError("WS error: " + e);
         ws.OnClose += (e) => Debug.Log("WS closed: " + e);
@@ -27,10 +27,9 @@ public class WebSocketClient : MonoBehaviour
         {
             string json = System.Text.Encoding.UTF8.GetString(bytes);
             DominoGame game = JsonUtility.FromJson<DominoGame>(json);
+            if (game == null) return;
+            OnGameReceived?.Invoke(game);
 
-            // Assign + rebuild table view
-            tableView.currentGame = game;
-            tableView.BuildTable();
         };
 
         await ws.Connect();

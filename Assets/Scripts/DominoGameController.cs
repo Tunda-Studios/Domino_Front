@@ -11,10 +11,9 @@ public class DominoGameController : MonoBehaviour
 {
     [Header("Refs")]
     public ApiClient apiClient;
-
+    [SerializeField] private WebSocketClient webSocketClient;
     [Header("Settings")]
     public float pollInterval = 5f;  // seconds between refreshes
-    private WebSocket websocket;
     private Coroutine pollRoutine;
     public bool enablePolling = true;
 
@@ -25,11 +24,13 @@ public class DominoGameController : MonoBehaviour
 
     public DominoTableView tableView;
 
-    private bool wsConnected = false;
+    private bool gameReady = false;
+
 
     private async void Start()
     {
-
+        /*
+        webSocketClient.OnGameReceived += HandleGameFromWS;
         if (apiClient == null)
             apiClient = FindObjectOfType<ApiClient>();
 
@@ -48,11 +49,51 @@ public class DominoGameController : MonoBehaviour
         // 4) Poll in background as fallback
         if (enablePolling)
             StartPolling();
+        */
+
+        if (apiClient == null)
+        {
+            apiClient = FindObjectOfType<ApiClient>();
+        }
+
+        //subscribe to WS updates
+        webSocketClient.OnGameReceived += HandleGameFromWS;
     }
 
-    public async Task LoadMyGames()
+    private void HandleGameFromWS(DominoGame game)
     {
+        if (game == null) return;
+
+        if (game.players == null || game.players.Count == 0)
+            return;
+
+        TryApplyGame(currentGame);
+    }
+
+    private void TryApplyGame(DominoGame game)
+    {
+        if (game.players == null || game.players.Count == 0)
+            return;
+
+        gameReady = true;
+
+        currentGame = game;
+        tableView.currentGame = game;
+        tableView.BuildTable();
+    }
+
+    private bool IsMyTurn(DominoGame game)
+    {
+        if (game == null || game.players == null) return false;
+
+        return game.players[game.currentTurnIndex].userId == apiClient.userId;
+    }
+
+
+    public async Task LoadMyGames()
+    {/*
         string res = await apiClient.Get("/api/games");
+
         if (string.IsNullOrEmpty(res))
         {
             Debug.LogError("Failed to load games.");
@@ -70,17 +111,48 @@ public class DominoGameController : MonoBehaviour
         currentGame = list.games[0];
         gameId = currentGame._id;
 
+        if(currentGame.players != null && currentGame.players.Count > 0)
+        {
+
+            gameReady = true;
+        }
+
         Debug.Log("Loaded game: " + gameId);
 
         // Render table
         tableView.currentGame = currentGame;
         tableView.myUserId = "u1";
         tableView.BuildTable();
+        */
+
+        string res = await apiClient.Get("/api/games");
+
+        if (string.IsNullOrEmpty(res))
+        {
+            Debug.LogError("res is empty");
+            return;
+        }
+
+        DominoGameListResponse list =
+        JsonUtility.FromJson<DominoGameListResponse>(res);
+
+        if (list == null || list.games == null || list.games.Count == 0)
+        {
+            Debug.LogError($"The response is empty  {list} or {list.games} or {list.games.Count} ");
+            return;
+        }
+
+        currentGame = list.games[0];
+        gameId = currentGame._id;
+
+        TryApplyGame(currentGame);
+
     }
 
+    /*
     private async Task ConnectWebSocket()
     {
-        websocket = new WebSocket("ws://localhost:3000");
+        websocket = new WebSocket("ws://localhost:3001");
 
         websocket.OnOpen += () =>
         {
@@ -105,17 +177,35 @@ public class DominoGameController : MonoBehaviour
             Debug.Log("WS Message Received: " + msg);
 
             var packet = JsonConvert.DeserializeObject<GamePacket>(msg);
+            if (packet == null) return;
+
+            //ignore ws updates until game is initialized
+            if(!gameReady)
+            {
+                Debug.LogWarning("[WS] Game not ready yet. Ignoring update.");
+                return;
+            }
 
             if (packet.type == "game_update" && packet.game._id == gameId)
             {
-                Debug.Log("WS → Updating board for game " + gameId);
-                ApplyGameState(packet.game);
+                // Extra safety
+                if (packet.game.players == null || packet.game.players.Count == 0)
+                {
+                    Debug.LogWarning("[WS] Game update received but players missing.");
+                    return;
+                }
+
+                if (packet.game._id == gameId)
+                {
+                    ApplyGameState(packet.game);
+                }
             }
         };
 
         await websocket.Connect();
     }
-
+    */
+    /*
     private async Task JoinRoom(string gameId)
     {
         if (!wsConnected)
@@ -135,6 +225,7 @@ public class DominoGameController : MonoBehaviour
 
         Debug.Log("Joined WS room for game " + gameId);
     }
+    */
     private async Task LoadAndLogGames()
     {
         
@@ -199,11 +290,9 @@ public class DominoGameController : MonoBehaviour
     {
         while (!string.IsNullOrEmpty(gameId))
         {
-            if (!wsConnected) // use polling ONLY if WS isn't active
-            {
-                var task = RefreshGame();
-                while (!task.IsCompleted) yield return null;
-            }
+            var task = RefreshGame();
+            while (!task.IsCompleted)
+                yield return null;
 
             yield return new WaitForSeconds(pollInterval);
         }
@@ -222,9 +311,30 @@ public class DominoGameController : MonoBehaviour
 
     private void ApplyGameState(DominoGame newState)
     {
+        if (newState == null)
+        {
+            return;
+        }
+
+        //hard guard
+        if (newState.players == null || newState.players.Count == 0)
+        {
+            Debug.LogWarning("[Unity] Game update received but players not ready yet.");
+            return;
+        }
+
+        //rebuild on game changed
+        bool boardChanged = currentGame == null || newState.board.Count != currentGame.board.Count || newState.currentTurnIndex != currentGame.currentTurnIndex;
+
+
+        gameReady = true;
         currentGame = newState;
         tableView.currentGame = newState;
-        tableView.BuildTable();
+
+        if (boardChanged)
+        {
+            tableView.BuildTable();
+        }
     }
 
     public async Task PlayFirstTileRight()
@@ -313,11 +423,11 @@ public class DominoGameController : MonoBehaviour
 
     void Update()
     {
-        websocket?.DispatchMessageQueue();
+    
     }
 
     private async void OnDestroy()
     {
-        await websocket.Close();
+       
     }
 }
