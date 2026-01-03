@@ -100,7 +100,7 @@ public class DominoTableView : MonoBehaviour
     }
 
     //Defined render seat
-    private void RenderSeat(Transform anchor, DominoPlayer player, bool isLocal)
+    private void RenderSeat(RectTransform anchor, DominoPlayer player, bool isLocal)
     {
         if (anchor == null || player == null)
         {
@@ -121,12 +121,10 @@ public class DominoTableView : MonoBehaviour
         for (int i = 0; i < hand.Count; i++)
         {
             GameObject prefab = isLocal ? dominoFacePrefab : dominoBackPrefab;
-            GameObject tileObj = Instantiate(prefab, anchor);
+            GameObject tileObj = Instantiate(prefab, anchor,false);
 
             RectTransform rt = tileObj.GetComponent<RectTransform>();
-            if (rt == null)
-                rt = tileObj.AddComponent<RectTransform>();
-
+            
             rt.anchoredPosition = new Vector2(startX + i * tileSpacing, 0f);
 
             tileObj.name = $"Tile_{player.userId}_{i}";
@@ -148,7 +146,7 @@ public class DominoTableView : MonoBehaviour
 
     public void SpawnBoardTile(DominoPlayer owner, int left, int right, Vector3 position)
     {
-        GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor);
+        GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor, false);
         RectTransform rt = tileObj.GetComponent<RectTransform>();
 
         if (rt == null)

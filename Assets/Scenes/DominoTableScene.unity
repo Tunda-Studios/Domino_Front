@@ -190,8 +190,8 @@ MonoBehaviour:
   topHandAnchor: {fileID: 1761416805}
   leftHandAnchor: {fileID: 2021931705}
   boardAnchor: {fileID: 2106531935}
-  dominoFacePrefab: {fileID: 3128145295705650846, guid: e9a7e768a3de9df4cb1ed6bf6e85aabc, type: 3}
-  dominoBackPrefab: {fileID: 3583338126658385561, guid: b264aad72f85c6840a5bcfff4a55d31a, type: 3}
+  dominoFacePrefab: {fileID: 8953239940826627144, guid: 2e8cc12e4d4a6364a90225dbe566b6eb, type: 3}
+  dominoBackPrefab: {fileID: 8953239940826627144, guid: 2e8cc12e4d4a6364a90225dbe566b6eb, type: 3}
   defaultSkin: {fileID: 11400000, guid: b9f9b3ecea270794dba251d97b7ea66d, type: 2}
   myUserId: u1
   tileSpacing: 1.2

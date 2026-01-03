@@ -20,6 +20,12 @@ public class DominoTileUI : MonoBehaviour
         if (skin != null)
         {
             tileImage.sprite = skin.GetTileSprite(left, right);
+            Debug.Log("reached " + tileImage.sprite);
+        }
+        else
+        {
+
+            Debug.Log("Reached");
         }
 
         if (debugLabel != null)
@@ -27,6 +33,7 @@ public class DominoTileUI : MonoBehaviour
     }
     private void Awake()
     {
+        Debug.Log("reached " );
         if (tileImage == null)
             tileImage = GetComponent<Image>();
     }
