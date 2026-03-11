@@ -30,11 +30,13 @@ public class DominoTableView : MonoBehaviour
     [Header("Layout")]
     public float tileSpacing = 120f;
 
+    //build table UI by rendering all hands
     public void BuildTable()
     {
+        //ensure the game state exist before attempting to render
         if (currentGame == null ||
-    currentGame.players == null ||
-    currentGame.players.Count == 0)
+            currentGame.players == null ||
+            currentGame.players.Count == 0)
         {
             Debug.LogWarning(
                 "DominoTableView.BuildTable skipped: game not ready (players missing)"
@@ -53,6 +55,8 @@ public class DominoTableView : MonoBehaviour
 
         // 1) Find my index in the server's player list
         int myIndex = players.FindIndex(p => p.userId == myUserId);
+
+        //stop if local player is not found
         if (myIndex == -1)
         {
             Debug.LogError($"myUserId {myUserId} not found in game players");
@@ -67,6 +71,7 @@ public class DominoTableView : MonoBehaviour
         int playerCount = players.Count;
         int[] seatToPlayerIndex = new int[playerCount];
 
+        //render the local player's hand
         for (int seat = 0; seat < playerCount; seat++)
         {
             seatToPlayerIndex[seat] = (myIndex + seat) % playerCount;
@@ -74,7 +79,6 @@ public class DominoTableView : MonoBehaviour
 
         // 3) Render each seat
         RenderSeat(bottomHandAnchor, players[seatToPlayerIndex[0]], isLocal: true);
-
         if (playerCount > 1)
             RenderSeat(rightHandAnchor, players[seatToPlayerIndex[1]], isLocal: false);
         if (playerCount > 2)
@@ -99,9 +103,10 @@ public class DominoTableView : MonoBehaviour
         }
     }
 
-    //Defined render seat
+    //render the domino tiles for a specific player's hand
     private void RenderSeat(RectTransform anchor, DominoPlayer player, bool isLocal)
     {
+        //validate inputs
         if (anchor == null || player == null)
         {
             Debug.LogWarning("RenderSeat called with null anchor or player");
@@ -118,17 +123,34 @@ public class DominoTableView : MonoBehaviour
         float totalWidth = (hand.Count - 1) * tileSpacing;
         float startX = -totalWidth / 2f;
 
+        //spawn each tile in the player's hand
         for (int i = 0; i < hand.Count; i++)
         {
+            //local players sees tile faces, oppenents see tile backs
             GameObject prefab = isLocal ? dominoFacePrefab : dominoBackPrefab;
             GameObject tileObj = Instantiate(prefab, anchor,false);
 
             RectTransform rt = tileObj.GetComponent<RectTransform>();
-            
-            rt.anchoredPosition = new Vector2(startX + i * tileSpacing, 0f);
+
+            //position tile in a horizontal row
+            bool verticalSeat = anchor == leftHandAnchor || anchor == rightHandAnchor;
+
+            float totalsize = (hand.Count - 1) * tileSpacing;
+            float start = -totalsize / 2f;
+
+            //rotate tiless for vertical seats
+            if (verticalSeat)
+            {
+                rt.localRotation = Quaternion.Euler(0, 0, 90);
+                rt.anchoredPosition = new Vector2(0f, start + i * tileSpacing);
+            }
+            else {
+                rt.anchoredPosition = new Vector2(start + i * tileSpacing, 0f);
+            }
 
             tileObj.name = $"Tile_{player.userId}_{i}";
 
+            //setup
             if (isLocal)
             {
                 int left = hand[i][0];
@@ -144,7 +166,7 @@ public class DominoTableView : MonoBehaviour
         }
     }
 
-    public void SpawnBoardTile(DominoPlayer owner, int left, int right, Vector3 position)
+    public void SpawnBoardTile(DominoPlayer owner, int left, int right, Vector2 position)
     {
         GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor, false);
         RectTransform rt = tileObj.GetComponent<RectTransform>();
@@ -153,7 +175,7 @@ public class DominoTableView : MonoBehaviour
         {
             rt = tileObj.AddComponent<RectTransform>();
         }
-        rt.anchoredPosition = new Vector2(position.x, position.y);
+        rt.anchoredPosition = position;
 
         DominoSpriteDatabase skin = owner.selectedSkin;
         Sprite sprite = skin.GetTileSprite(left, right);
@@ -241,9 +263,11 @@ public class DominoTableView : MonoBehaviour
             int right = testBoard[i][1];
 
             Vector2 pos = new Vector2(startX + i * tileSpacing, 0f);
-
+            Debug.Log($"Tile {i} position: {pos}");
             SpawnBoardTile(fakeOwner, left, right, pos);
+
         }
+
     }
 
     public void TestPlaceLeft()
@@ -254,7 +278,7 @@ public class DominoTableView : MonoBehaviour
 
         if (tile[0] != leftValue && tile[1] != leftValue)
         {
-            Debug.Log("❌ Cannot play [5|2] on LEFT");
+            Debug.Log(" Cannot play [5|2] on LEFT");
             return;
         }
 
@@ -264,7 +288,7 @@ public class DominoTableView : MonoBehaviour
 
         testBoard.Insert(0, tile);
 
-        Debug.Log("✅ Played [5|2] on LEFT");
+        Debug.Log(" Played [5|2] on LEFT");
         PrintBoard();
         RenderBoard();
     }
@@ -277,7 +301,7 @@ public class DominoTableView : MonoBehaviour
 
         if (tile[0] != rightValue && tile[1] != rightValue)
         {
-            Debug.Log("❌ Cannot play [5|2] on RIGHT");
+            Debug.Log(" Cannot play [5|2] on RIGHT");
             return;
         }
 
@@ -287,7 +311,7 @@ public class DominoTableView : MonoBehaviour
 
         testBoard.Add(tile);
 
-        Debug.Log("✅ Played [5|2] on RIGHT");
+        Debug.Log(" Played [5|2] on RIGHT");
         PrintBoard();
         RenderBoard();
     }
