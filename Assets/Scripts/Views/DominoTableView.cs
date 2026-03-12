@@ -22,7 +22,8 @@ public class DominoTableView : MonoBehaviour
     [Header("UNITY TEST BOARD")]
     public List<int[]> testBoard = new List<int[]>();
 
-
+    float tileWidth;
+    float tileHeight;
 
     public string myUserId = "u1";       
     public DominoGame currentGame;        
@@ -30,6 +31,12 @@ public class DominoTableView : MonoBehaviour
     [Header("Layout")]
     public float tileSpacing = 120f;
 
+    private void Awake()
+    {
+        RectTransform tileRect = dominoFacePrefab.GetComponent<RectTransform>();
+        tileWidth = tileRect.rect.width;
+        tileHeight = tileRect.rect.height;
+    }
     //build table UI by rendering all hands
     public void BuildTable()
     {
@@ -119,9 +126,13 @@ public class DominoTableView : MonoBehaviour
 
         var hand = player.hand;
 
+        bool verticalSeat = anchor == leftHandAnchor || anchor == rightHandAnchor;
+        float spacing = verticalSeat ? tileHeight * 1.1f : tileWidth * 1.1f;
+
+        float totalSize = (hand.Count - 1) * spacing;
+        float start = -(totalSize / 2f);
+
         // Center the row
-        float totalWidth = (hand.Count - 1) * tileSpacing;
-        float startX = -totalWidth / 2f;
 
         //spawn each tile in the player's hand
         for (int i = 0; i < hand.Count; i++)
@@ -132,20 +143,14 @@ public class DominoTableView : MonoBehaviour
 
             RectTransform rt = tileObj.GetComponent<RectTransform>();
 
-            //position tile in a horizontal row
-            bool verticalSeat = anchor == leftHandAnchor || anchor == rightHandAnchor;
-
-            float totalsize = (hand.Count - 1) * tileSpacing;
-            float start = -totalsize / 2f;
-
             //rotate tiless for vertical seats
             if (verticalSeat)
             {
-                rt.localRotation = Quaternion.Euler(0, 0, 90);
-                rt.anchoredPosition = new Vector2(0f, start + i * tileSpacing);
+                rt.anchoredPosition = new Vector2(0f, start + i * spacing);
+                rt.localRotation = Quaternion.Euler(0, 0, 90);          
             }
             else {
-                rt.anchoredPosition = new Vector2(start + i * tileSpacing, 0f);
+                rt.anchoredPosition = new Vector2(start + i * spacing, 0f);
             }
 
             tileObj.name = $"Tile_{player.userId}_{i}";
@@ -176,6 +181,8 @@ public class DominoTableView : MonoBehaviour
             rt = tileObj.AddComponent<RectTransform>();
         }
         rt.anchoredPosition = position;
+
+        rt.localRotation = Quaternion.Euler(0, 0, 90);
 
         DominoSpriteDatabase skin = owner.selectedSkin;
         Sprite sprite = skin.GetTileSprite(left, right);
@@ -216,7 +223,7 @@ public class DominoTableView : MonoBehaviour
         Debug.Log("Initialized test board");
         PrintBoard();
 
-        RenderBoard();
+        RenderBoard(testBoard);
     }
 
     void PrintBoard()
@@ -227,7 +234,7 @@ public class DominoTableView : MonoBehaviour
         Debug.Log(s);
     }
 
-    public void RenderBoard()
+    public void RenderBoard(List<int[]> board)
     {
         if (boardAnchor == null)
         {
@@ -248,8 +255,9 @@ public class DominoTableView : MonoBehaviour
         }
 
         // Center the board horizontally
-        float totalWidth = (testBoard.Count - 1) * tileSpacing;
-        float startX = -totalWidth / 2f;
+        float spacing = tileHeight;
+        int tileCount = board.Count;
+        float startX = -(spacing * (tileCount - 1)) / 2f;
 
         // Fake owner just to get a skin
         DominoPlayer fakeOwner = new DominoPlayer
@@ -262,7 +270,7 @@ public class DominoTableView : MonoBehaviour
             int left = testBoard[i][0];
             int right = testBoard[i][1];
 
-            Vector2 pos = new Vector2(startX + i * tileSpacing, 0f);
+            Vector2 pos = new Vector2(startX + i * spacing, 0f);
             Debug.Log($"Tile {i} position: {pos}");
             SpawnBoardTile(fakeOwner, left, right, pos);
 
@@ -290,7 +298,7 @@ public class DominoTableView : MonoBehaviour
 
         Debug.Log(" Played [5|2] on LEFT");
         PrintBoard();
-        RenderBoard();
+        RenderBoard(testBoard);
     }
 
     public void TestPlaceRight()
@@ -313,7 +321,7 @@ public class DominoTableView : MonoBehaviour
 
         Debug.Log(" Played [5|2] on RIGHT");
         PrintBoard();
-        RenderBoard();
+        RenderBoard(testBoard);
     }
 
 
