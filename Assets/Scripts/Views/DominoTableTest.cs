@@ -10,7 +10,7 @@ public class DominoTableTest : MonoBehaviour
     {
         DominoGame game = new DominoGame();
         game.players = new List<DominoPlayer>();
-        game.board = new List<int[]>();
+        game.board = new LinkedList<int[]>();
 
         // Fake Hands
         game.players.Add(new DominoPlayer

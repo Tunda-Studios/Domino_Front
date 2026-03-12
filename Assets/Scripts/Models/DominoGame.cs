@@ -14,7 +14,7 @@ public class DominoGame
     public int currentTurnIndex;
     public List<DominoPlayer> players;
 
-    public List<int[]> board;
+    public LinkedList<int[]> board;
     public List<int[]> boneyard;
 
     public int roundNumber;

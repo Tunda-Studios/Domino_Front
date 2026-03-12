@@ -31,6 +31,20 @@ public class DominoTableView : MonoBehaviour
     [Header("Layout")]
     public float tileSpacing = 120f;
 
+    [Header("Board Scaling")]
+    public int shrinkStart = 5;
+    public float minBoardScale = 0.6f;
+
+    [Header("Board Layout")]
+    public float rowSpacing = 1.2f; // vertical distance between rows
+
+    [Header("Tiles turning")]
+    int horizontalLength = 6;  // tiles before turning
+    int horizontalCount = 0;
+
+    int verticalLength = 2;
+    int verticalCount = 0;
+
     private void Awake()
     {
         RectTransform tileRect = dominoFacePrefab.GetComponent<RectTransform>();
@@ -127,7 +141,7 @@ public class DominoTableView : MonoBehaviour
         var hand = player.hand;
 
         bool verticalSeat = anchor == leftHandAnchor || anchor == rightHandAnchor;
-        float spacing = verticalSeat ? tileHeight * 1.1f : tileWidth * 1.1f;
+        float spacing = verticalSeat ? tileHeight * 0.8f : tileWidth * 1.1f;
 
         float totalSize = (hand.Count - 1) * spacing;
         float start = -(totalSize / 2f);
@@ -171,21 +185,37 @@ public class DominoTableView : MonoBehaviour
         }
     }
 
-    public void SpawnBoardTile(DominoPlayer owner, int left, int right, Vector2 position)
+    public void SpawnBoardTile(
+    DominoPlayer owner,
+    int left,
+    int right,
+    Vector2 position,
+    float scale,
+    Direction direction)
     {
         GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor, false);
         RectTransform rt = tileObj.GetComponent<RectTransform>();
 
-        if (rt == null)
-        {
-            rt = tileObj.AddComponent<RectTransform>();
-        }
         rt.anchoredPosition = position;
+        rt.localScale = Vector3.one * scale;
 
-        rt.localRotation = Quaternion.Euler(0, 0, 90);
+        bool isDouble = left == right;
 
-        DominoSpriteDatabase skin = owner.selectedSkin;
-        Sprite sprite = skin.GetTileSprite(left, right);
+        if (direction == Direction.Right || direction == Direction.Left)
+        {
+            // Horizontal chain
+            rt.localRotation = Quaternion.Euler(0, 0, 90);
+        }
+        else if (direction == Direction.Down)
+        {
+            // Vertical chain
+            rt.localRotation = Quaternion.Euler(0, 0, 0);
+        }
+
+        if (isDouble)
+        {
+            rt.localRotation = Quaternion.Euler(0, 0, 0);
+        }
 
         DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
         ui.Setup(left, right, owner.selectedSkin);
@@ -206,7 +236,7 @@ public class DominoTableView : MonoBehaviour
             selectedSkin = defaultSkin
         };
 
-        SpawnBoardTile(fakeOwner, left, right, pos);
+        SpawnBoardTile(fakeOwner, left, right, pos,1f, Direction.Right);
 
         Debug.Log($"Spawned test board tile [{left}|{right}] at {pos}");
     }
@@ -236,46 +266,166 @@ public class DominoTableView : MonoBehaviour
 
     public void RenderBoard(List<int[]> board)
     {
-        if (boardAnchor == null)
-        {
-            Debug.LogError("BoardAnchor is not set!");
-            return;
-        }
+        if (boardAnchor == null) return;
 
-        // Clear existing board tiles
         for (int i = boardAnchor.childCount - 1; i >= 0; i--)
-        {
             Destroy(boardAnchor.GetChild(i).gameObject);
-        }
 
-        if (testBoard == null || testBoard.Count == 0)
-        {
-            Debug.Log("RenderBoard: testBoard empty");
-            return;
-        }
+        if (board.Count == 0) return;
 
-        // Center the board horizontally
-        float spacing = tileHeight;
-        int tileCount = board.Count;
-        float startX = -(spacing * (tileCount - 1)) / 2f;
+        float scale = 1f;
 
-        // Fake owner just to get a skin
+        float horizontalStep = tileHeight * scale;
+        float verticalStep = tileHeight * scale;
+
+        float boardHalfWidth = boardAnchor.rect.width / 2f;
+
+        float edgeMargin = horizontalStep;
+        float rightLimit = boardHalfWidth - edgeMargin;
+        float leftLimit = -boardHalfWidth + edgeMargin;
+
         DominoPlayer fakeOwner = new DominoPlayer
         {
             selectedSkin = defaultSkin
         };
 
-        for (int i = 0; i < testBoard.Count; i++)
+        int center = board.Count / 2;
+
+        // RIGHT SIDE STATE
+        Vector2 pos = Vector2.zero;
+        Direction direction = Direction.Right;
+        int verticalCount = 0;
+        int verticalLength = 2;
+
+        // LEFT SIDE STATE
+        Vector2 leftPos = Vector2.zero;
+        Direction leftDirection = Direction.Left;
+        int leftVerticalCount = 0;
+
+        // center tile
+        SpawnBoardTile(
+            fakeOwner,
+            board[center][0],
+            board[center][1],
+            Vector2.zero,
+            scale,
+            Direction.Right
+        );
+
+        // render outward
+        for (int step = 1; step <= center || center + step < board.Count; step++)
         {
-            int left = testBoard[i][0];
-            int right = testBoard[i][1];
 
-            Vector2 pos = new Vector2(startX + i * spacing, 0f);
-            Debug.Log($"Tile {i} position: {pos}");
-            SpawnBoardTile(fakeOwner, left, right, pos);
+            // RIGHT SIDE 
+            if (center + step < board.Count)
+            {
+                switch (direction)
+                {
+                    case Direction.Right:
+                        if (pos.x + horizontalStep > rightLimit)
+                        {
+                            direction = Direction.Down;
+                            verticalCount = 0;
+                            pos.y -= verticalStep;
+                            verticalCount++;
+                            break;
+                        }
 
+                        pos.x += horizontalStep;
+                        break;
+
+                    case Direction.Left:
+                        if (pos.x - horizontalStep < leftLimit)
+                        {
+                            direction = Direction.Down;
+                            verticalCount = 0;
+                            pos.y -= verticalStep;
+                            verticalCount++;
+                            break;
+                        }
+
+                        pos.x -= horizontalStep;
+                        break;
+
+                    case Direction.Down:
+                        pos.y -= verticalStep;
+                        verticalCount++;
+                        break;
+                }
+
+                SpawnBoardTile(
+                    fakeOwner,
+                    board[center + step][0],
+                    board[center + step][1],
+                    pos,
+                    scale,
+                    direction
+                );
+
+                // TURN LOGIC
+                if (direction == Direction.Right && pos.x >= rightLimit)
+                {
+                    direction = Direction.Down;
+                    verticalCount = 0;
+                }
+                else if (direction == Direction.Left && pos.x <= leftLimit)
+                {
+                    direction = Direction.Down;
+                    verticalCount = 0;
+                }
+                else if (direction == Direction.Down && verticalCount >= verticalLength)
+                {
+                    verticalCount = 0;
+                    direction = (pos.x > 0) ? Direction.Left : Direction.Right;
+                }
+            }
+
+            // LEFT SIDE
+            if (center - step >= 0)
+            {
+                switch (leftDirection)
+                {
+                    case Direction.Left:
+                        leftPos.x -= horizontalStep;
+                        break;
+
+                    case Direction.Right:
+                        leftPos.x += horizontalStep;
+                        break;
+
+                    case Direction.Down:
+                        leftPos.y += verticalStep;
+                        leftVerticalCount++;
+                        break;
+                }
+
+                SpawnBoardTile(
+                    fakeOwner,
+                    board[center - step][0],
+                    board[center - step][1],
+                    leftPos,
+                    scale,
+                    leftDirection
+                );
+
+                // TURN LOGIC (mirror of right side)
+                if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
+                {
+                    leftDirection = Direction.Down;
+                    leftVerticalCount = 0;
+                }
+                else if (leftDirection == Direction.Right && leftPos.x >= rightLimit)
+                {
+                    leftDirection = Direction.Down;
+                    leftVerticalCount = 0;
+                }
+                else if (leftDirection == Direction.Down && leftVerticalCount >= verticalLength)
+                {
+                    leftVerticalCount = 0;
+                    leftDirection = (leftPos.x > 0) ? Direction.Left : Direction.Right;
+                }
+            }
         }
-
     }
 
     public void TestPlaceLeft()
@@ -285,18 +435,14 @@ public class DominoTableView : MonoBehaviour
         int leftValue = testBoard[0][0];
 
         if (tile[0] != leftValue && tile[1] != leftValue)
-        {
-            Debug.Log(" Cannot play [5|2] on LEFT");
             return;
-        }
 
-        // Flip if needed
-        if (tile[1] == leftValue)
+        // Ensure RIGHT side matches board
+        if (tile[0] == leftValue)
             tile = new int[] { tile[1], tile[0] };
 
         testBoard.Insert(0, tile);
 
-        Debug.Log(" Played [5|2] on LEFT");
         PrintBoard();
         RenderBoard(testBoard);
     }
@@ -309,7 +455,7 @@ public class DominoTableView : MonoBehaviour
 
         if (tile[0] != rightValue && tile[1] != rightValue)
         {
-            Debug.Log(" Cannot play [5|2] on RIGHT");
+            //Debug.Log(" Cannot play [5|2] on RIGHT");
             return;
         }
 
@@ -319,7 +465,7 @@ public class DominoTableView : MonoBehaviour
 
         testBoard.Add(tile);
 
-        Debug.Log(" Played [5|2] on RIGHT");
+        //Debug.Log(" Played [5|2] on RIGHT");
         PrintBoard();
         RenderBoard(testBoard);
     }
