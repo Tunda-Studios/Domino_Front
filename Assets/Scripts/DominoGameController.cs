@@ -5,10 +5,11 @@ using UnityEngine;
 using Newtonsoft.Json;
 using NativeWebSocket;
 using System.Text;
-
+using System;
 
 public class DominoGameController : MonoBehaviour
 {
+
     [Header("Refs")]
     public ApiClient apiClient;
     [SerializeField] private WebSocketClient webSocketClient;
@@ -23,9 +24,23 @@ public class DominoGameController : MonoBehaviour
     public DominoGame currentGame;
 
     public DominoTableView tableView;
+    private DominoTileUI selectedTile;
 
     private bool gameReady = false;
 
+    public static DominoGameController Instance { get; private set; }
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+    }
 
     private async void Start()
     {
@@ -415,6 +430,95 @@ public class DominoGameController : MonoBehaviour
 
         StartPolling();
 
+    }
+
+
+    public async void TryPlayTile(Domino tile)
+    {
+        //if not the players turn
+        if (!IsMyTurn(currentGame))
+        {
+            Debug.Log("Not your turn.");
+            return;
+        }
+
+        BoardEnd end = DecidePlacement(tile);
+
+        // create a move request
+        var req = new MoveRequest
+        {
+            tile = new int[] { tile.left, tile.right },
+            end = end.ToString().ToLower()
+        };
+
+        //convert the object to an json string
+        string body = JsonConvert.SerializeObject(req);
+
+        //send the move request
+        string res = await apiClient.Post(
+            $"/api/games/{gameId}/move",
+            body
+        );
+
+        //if null or empty return
+        if (string.IsNullOrEmpty(res))
+            return;
+
+        // convert the resoponse back to the Domino game object;
+        DominoGame updated = JsonConvert.DeserializeObject<DominoGame>(res);
+        //update game state
+        ApplyGameState(updated);
+    }
+
+    private BoardEnd DecidePlacement(Domino tile)
+    {
+
+        //
+
+        //if nothing is on the board
+        if (currentGame.board.Count == 0)
+        {
+            //the first tile doesn't matter
+            return BoardEnd.RIGHT;
+        }
+
+        // get the left and right end of the board
+        int leftEnd = currentGame.board.First.Value.left;
+        int rightEnd = currentGame.board.First.Value.right;
+
+        //check if your tile matches left or right side of the tile on the board
+        bool matchLeft = tile.left == leftEnd || tile.right == leftEnd;
+        bool matchRight = tile.left == rightEnd || tile.right == rightEnd;
+
+        //can pick the left side
+        if (matchLeft && !matchRight)
+        {
+            return BoardEnd.LEFT;
+        }
+
+        //can pick the right side
+        if (matchRight && !matchLeft)
+        {
+            return BoardEnd.RIGHT;
+        }
+        
+        //can pick left or right side
+        if (matchLeft && matchRight)
+        {
+            return BoardEnd.RIGHT;
+        }
+
+        throw new Exception("Tile cannot be placed on either end");
+    }
+
+    private void SetSelectedTile(DominoTileUI tileUI)
+    {
+        if (selectedTile != null && selectedTile != tileUI)
+        {
+            selectedTile.setSelected(false);
+        }
+
+        selectedTile = tileUI;
     }
 
 

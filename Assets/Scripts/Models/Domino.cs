@@ -24,4 +24,15 @@ public struct Domino
     {
         return $"{left}|{right}";
     }
+
+    public bool IsDouble()
+    {
+        return left == right;
+    }
+
+    public bool Contains(int value)
+    {
+        return left == value || right == value;
+    }
+
 }

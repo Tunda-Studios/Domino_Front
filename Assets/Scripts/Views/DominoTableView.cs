@@ -45,6 +45,9 @@ public class DominoTableView : MonoBehaviour
     int verticalLength = 2;
     int verticalCount = 0;
 
+    [Header("Testing")]
+    public bool enableLocalPlayTesting = true;
+
     private void Awake()
     {
         RectTransform tileRect = dominoFacePrefab.GetComponent<RectTransform>();
@@ -181,6 +184,8 @@ public class DominoTableView : MonoBehaviour
                 DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
                 if (ui != null)
                     ui.Setup(left, right, player.selectedSkin);
+                //remove later?
+                ui.table = this;
             }
         }
     }
@@ -470,5 +475,52 @@ public class DominoTableView : MonoBehaviour
         RenderBoard(testBoard);
     }
 
+    public void OnTileClicked(int left, int right)
+    {
+        if (!enableLocalPlayTesting)
+            return;
+
+        Debug.Log($"Clicked tile [{left}|{right}]");
+
+        int[] tile = new int[] { left, right };
+
+        if (testBoard.Count == 0)
+        {
+            testBoard.Add(tile);
+            RenderBoard(testBoard);
+            return;
+        }
+
+        int leftEnd = testBoard[0][0];
+        int rightEnd = testBoard[testBoard.Count - 1][1];
+
+        // Try LEFT
+        if (tile[0] == leftEnd || tile[1] == leftEnd)
+        {
+            if (tile[0] == leftEnd)
+                tile = new int[] { tile[1], tile[0] };
+
+            testBoard.Insert(0, tile);
+            Debug.Log("Played LEFT");
+        }
+
+        // Try RIGHT
+        else if (tile[0] == rightEnd || tile[1] == rightEnd)
+        {
+            if (tile[0] != rightEnd)
+                tile = new int[] { tile[1], tile[0] };
+
+            testBoard.Add(tile);
+            Debug.Log("Played RIGHT");
+        }
+        else
+        {
+            Debug.Log("Illegal move");
+            return;
+        }
+
+        PrintBoard();
+        RenderBoard(testBoard);
+    }
 
 }
