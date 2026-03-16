@@ -5,7 +5,7 @@ using UnityEngine.UI;
 using TMPro;
 using UnityEngine.EventSystems;
 
-public class DominoTileUI : MonoBehaviour, IPointerClickHandler
+public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     [SerializeField] private Image tileImage;
     public TMP_Text debugLabel;        // optional: show "2|3" for debugging
@@ -13,6 +13,11 @@ public class DominoTileUI : MonoBehaviour, IPointerClickHandler
 
     public int _left;
     public int _right;
+
+    private RectTransform rect;
+    private Canvas canvas;
+
+    private Vector2 startPosition;
 
     private bool selected = false;
     public DominoTableView table;
@@ -39,28 +44,18 @@ public class DominoTileUI : MonoBehaviour, IPointerClickHandler
     private void Awake()
     {
         Debug.Log("reached " );
+        rect = GetComponent<RectTransform>();
+
+        if (rect == null)
+            Debug.LogError("DominoTileUI missing RectTransform!");
+
+        canvas = GetComponentInParent<Canvas>();
+
+        if (canvas == null)
+            Debug.LogError("DominoTileUI could not find Canvas!");
+
         if (tileImage == null)
             tileImage = GetComponent<Image>();
-    }
-
-    public void OnPointerClick(PointerEventData eventData)
-    {
-
-        /* //toggle selection
-         selected = !selected;
-
-         if (selected)
-         {
-             DominoGameController.Instance.SetSelectedTile(this);
-         }
-         Domino tile = new Domino(_left, _right);
-
-         DominoGameController.Instance.TryPlayTile(tile);
-        */
-
-        //localhost test
-        if (table != null)
-            table.OnTileClicked(_left, _right);
     }
 
     public void setSelected(bool value)
@@ -73,5 +68,31 @@ public class DominoTileUI : MonoBehaviour, IPointerClickHandler
         }
     }
 
- 
+    public void OnBeginDrag(PointerEventData eventData)
+    {
+        startPosition = rect.anchoredPosition;
+    }
+
+    public void OnDrag(PointerEventData eventData)
+    {
+        rect.anchoredPosition += eventData.delta / canvas.scaleFactor;
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        Domino tile = new Domino
+        {
+            left = _left,
+            right = _right
+        };
+
+        DominoGameController.Instance.TryPlayTile(tile, rect.position, this);
+    }
+
+    public void ReturnToHand()
+    {
+        rect.anchoredPosition = startPosition;
+    }
+
+
 }

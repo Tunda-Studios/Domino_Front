@@ -523,4 +523,20 @@ public class DominoTableView : MonoBehaviour
         RenderBoard(testBoard);
     }
 
+
+    public Vector3 GetLeftEndWorldPosition()
+    {
+        if (boardAnchor.childCount == 0)
+            return boardAnchor.position;
+
+        return boardAnchor.GetChild(0).position;
+    }
+
+    public Vector3 GetRightEndWorldPosition()
+    {
+        if (boardAnchor.childCount == 0)
+            return boardAnchor.position;
+
+        return boardAnchor.GetChild(boardAnchor.childCount - 1).position;
+    }
 }

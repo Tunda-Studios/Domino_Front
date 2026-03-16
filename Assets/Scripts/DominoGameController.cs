@@ -26,6 +26,8 @@ public class DominoGameController : MonoBehaviour
     public DominoTableView tableView;
     private DominoTileUI selectedTile;
 
+    public bool offlineMode = true;
+
     private bool gameReady = false;
 
     public static DominoGameController Instance { get; private set; }
@@ -433,17 +435,24 @@ public class DominoGameController : MonoBehaviour
     }
 
 
-    public async void TryPlayTile(Domino tile)
+    public async void TryPlayTile(Domino tile, Vector2 dropPosition, DominoTileUI tileUI)
     {
+        if (tableView.enableLocalPlayTesting)
+        {
+            tableView.OnTileClicked(tile.left, tile.right);
+            return;
+        }
         //if not the players turn
         if (!IsMyTurn(currentGame))
         {
             Debug.Log("Not your turn.");
+            tileUI.ReturnToHand();
             return;
         }
 
-        BoardEnd end = DecidePlacement(tile);
+        BoardEnd end = DecidePlacementFromDrop(tile,dropPosition);
 
+       
         // create a move request
         var req = new MoveRequest
         {
@@ -462,7 +471,10 @@ public class DominoGameController : MonoBehaviour
 
         //if null or empty return
         if (string.IsNullOrEmpty(res))
+        {
+            tileUI.ReturnToHand();
             return;
+        }
 
         // convert the resoponse back to the Domino game object;
         DominoGame updated = JsonConvert.DeserializeObject<DominoGame>(res);
@@ -470,10 +482,8 @@ public class DominoGameController : MonoBehaviour
         ApplyGameState(updated);
     }
 
-    private BoardEnd DecidePlacement(Domino tile)
+    private BoardEnd DecidePlacementFromDrop(Domino tile,Vector2 dropPosition)
     {
-
-        //
 
         //if nothing is on the board
         if (currentGame.board.Count == 0)
@@ -483,32 +493,27 @@ public class DominoGameController : MonoBehaviour
         }
 
         // get the left and right end of the board
-        int leftEnd = currentGame.board.First.Value.left;
-        int rightEnd = currentGame.board.First.Value.right;
+        Vector3 leftPos = tableView.GetLeftEndWorldPosition();
+        Vector3 rightPos = tableView.GetRightEndWorldPosition();
 
-        //check if your tile matches left or right side of the tile on the board
+        float distLeft = Vector2.Distance(dropPosition, leftPos);
+        float distRight = Vector2.Distance(dropPosition, rightPos);
+
+        BoardEnd chosenEnd = distLeft < distRight ? BoardEnd.LEFT : BoardEnd.RIGHT;
+
+        int leftEnd = currentGame.board.First.Value.left;
+        int rightEnd = currentGame.board.Last.Value.right;
+
         bool matchLeft = tile.left == leftEnd || tile.right == leftEnd;
         bool matchRight = tile.left == rightEnd || tile.right == rightEnd;
 
-        //can pick the left side
-        if (matchLeft && !matchRight)
-        {
+        if (chosenEnd == BoardEnd.LEFT && matchLeft)
             return BoardEnd.LEFT;
-        }
 
-        //can pick the right side
-        if (matchRight && !matchLeft)
-        {
+        if (chosenEnd == BoardEnd.RIGHT && matchRight)
             return BoardEnd.RIGHT;
-        }
-        
-        //can pick left or right side
-        if (matchLeft && matchRight)
-        {
-            return BoardEnd.RIGHT;
-        }
 
-        throw new Exception("Tile cannot be placed on either end");
+        throw new Exception("Tile cannot be placed on that end.");
     }
 
     private void SetSelectedTile(DominoTileUI tileUI)
