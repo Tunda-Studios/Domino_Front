@@ -25,7 +25,7 @@ public class DominoSpriteDatabase : ScriptableObject
         foreach (var t in tiles)
         {
             lookup[(t.left, t.right)] = t.sprite;
-            lookup[(t.right, t.left)] = t.sprite; // dominoes are reversible
+            lookup[(t.right, t.left)] = t.sprite; 
         }
     }
 

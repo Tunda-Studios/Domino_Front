@@ -30,20 +30,14 @@ public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEnd
         if (skin != null)
         {
             tileImage.sprite = skin.GetTileSprite(left, right);
-            Debug.Log("reached " + tileImage.sprite);
-        }
-        else
-        {
-
-            Debug.Log("Reached");
+           
         }
 
         if (debugLabel != null)
             debugLabel.text = $"{left}|{right}";
     }
     private void Awake()
-    {
-        Debug.Log("reached " );
+    { 
         rect = GetComponent<RectTransform>();
 
         if (rect == null)

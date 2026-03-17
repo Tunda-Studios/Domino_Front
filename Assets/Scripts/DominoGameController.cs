@@ -32,6 +32,8 @@ public class DominoGameController : MonoBehaviour
 
     public static DominoGameController Instance { get; private set; }
 
+
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -44,8 +46,17 @@ public class DominoGameController : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    private async void Start()
+    private void Start()
     {
+            if (tableView.enableLocalPlayTesting)
+            {
+                CreateOfflineGame();
+
+                tableView.currentGame = currentGame;
+                tableView.myUserId = "u1";
+
+                tableView.BuildTable();
+            }
         /*
         webSocketClient.OnGameReceived += HandleGameFromWS;
         if (apiClient == null)
@@ -300,9 +311,6 @@ public class DominoGameController : MonoBehaviour
         pollRoutine = StartCoroutine(PollLoop());
     }
 
-
-
-
     private IEnumerator PollLoop()
     {
         while (!string.IsNullOrEmpty(gameId))
@@ -401,8 +409,6 @@ public class DominoGameController : MonoBehaviour
     }
 
 
-    // ---- Backend interactions ----
-
     public async Task CreateAndStartTestGame()
     {
         var req = new CreateGameRequest
@@ -434,15 +440,102 @@ public class DominoGameController : MonoBehaviour
 
     }
 
-
     public async void TryPlayTile(Domino tile, Vector2 dropPosition, DominoTileUI tileUI)
     {
-        if (tableView.enableLocalPlayTesting)
+        // Determine which side of the board the tile should go
+        BoardEnd end;
+
+        try
         {
-            tableView.OnTileClicked(tile.left, tile.right);
+            end = DecidePlacementFromDrop(tile, dropPosition);
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning(e.Message);
+
+            tileUI.ReturnToHand(); 
             return;
         }
-        //if not the players turn
+
+        // OFFLINE LOCAL TESTING MODE
+
+        if (tableView.enableLocalPlayTesting)
+        {
+            if (currentGame == null || currentGame.players == null || currentGame.players.Count == 0)
+            {
+                Debug.LogError("Offline play failed. Game state invalid.");
+                tileUI.ReturnToHand();
+                return;
+            }
+
+            var player = currentGame.players[0];
+
+            // Remove tile from player hand
+            bool removed = false;
+
+            for (int i = 0; i < player.hand.Count; i++)
+            {
+                var handTile = player.hand[i];
+
+                if (handTile[0] == tile.left && handTile[1] == tile.right)
+                {
+                    player.hand.RemoveAt(i);
+                    removed = true;
+                    break;
+                }
+            }
+
+            if (!removed)
+            {
+                Debug.LogWarning("Tile not found in hand.");
+                tileUI.ReturnToHand();
+                return;
+            }
+
+            // Add tile to board
+            if (currentGame.board.Count == 0)
+            {
+                currentGame.board.AddFirst(tile);
+            }
+            else if (end == BoardEnd.LEFT)
+            {
+                int boardValue = currentGame.board.First.Value.left;
+
+                // flip if needed
+                if (tile.right != boardValue)
+                {
+                    int temp = tile.left;
+                    tile.left = tile.right;
+                    tile.right = temp;
+                }
+
+                currentGame.board.AddFirst(tile);
+            }
+            else
+            {
+                int boardValue = currentGame.board.Last.Value.right;
+
+                // flip if needed
+                if (tile.left != boardValue)
+                {
+                    int temp = tile.left;
+                    tile.left = tile.right;
+                    tile.right = temp;
+                }
+
+                currentGame.board.AddLast(tile);
+            }
+
+            // Refresh board UI
+            tableView.RenderBoard(currentGame.board);
+            tableView.BuildTable();
+
+            return;
+        }
+
+        // ONLINE PLAY
+   
+
         if (!IsMyTurn(currentGame))
         {
             Debug.Log("Not your turn.");
@@ -450,36 +543,37 @@ public class DominoGameController : MonoBehaviour
             return;
         }
 
-        BoardEnd end = DecidePlacementFromDrop(tile,dropPosition);
-
-       
-        // create a move request
-        var req = new MoveRequest
+        try
         {
-            tile = new int[] { tile.left, tile.right },
-            end = end.ToString().ToLower()
-        };
+            var req = new MoveRequest
+            {
+                tile = new int[] { tile.left, tile.right },
+                end = end.ToString().ToLower()
+            };
 
-        //convert the object to an json string
-        string body = JsonConvert.SerializeObject(req);
+            string body = JsonConvert.SerializeObject(req);
 
-        //send the move request
-        string res = await apiClient.Post(
-            $"/api/games/{gameId}/move",
-            body
-        );
+            string res = await apiClient.Post(
+                $"/api/games/{gameId}/move",
+                body
+            );
 
-        //if null or empty return
-        if (string.IsNullOrEmpty(res))
-        {
-            tileUI.ReturnToHand();
-            return;
+            if (string.IsNullOrEmpty(res))
+            {
+                Debug.LogWarning("Server returned empty response.");
+                tileUI.ReturnToHand();
+                return;
+            }
+
+            DominoGame updated = JsonConvert.DeserializeObject<DominoGame>(res);
+
+            ApplyGameState(updated);
         }
-
-        // convert the resoponse back to the Domino game object;
-        DominoGame updated = JsonConvert.DeserializeObject<DominoGame>(res);
-        //update game state
-        ApplyGameState(updated);
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Move request failed: {e.Message}");
+            tileUI.ReturnToHand();
+        }
     }
 
     private BoardEnd DecidePlacementFromDrop(Domino tile,Vector2 dropPosition)
@@ -513,7 +607,16 @@ public class DominoGameController : MonoBehaviour
         if (chosenEnd == BoardEnd.RIGHT && matchRight)
             return BoardEnd.RIGHT;
 
+        // Otherwise, fallback to the other valid side
+        if (matchLeft)
+            return BoardEnd.LEFT;
+
+        if (matchRight)
+            return BoardEnd.RIGHT;
+
+
         throw new Exception("Tile cannot be placed on that end.");
+       
     }
 
     private void SetSelectedTile(DominoTileUI tileUI)
@@ -538,5 +641,36 @@ public class DominoGameController : MonoBehaviour
     private async void OnDestroy()
     {
        
+    }
+
+    public void CreateOfflineGame()
+    {
+        currentGame = new DominoGame();
+
+        currentGame.players = new List<DominoPlayer>();
+
+        DominoPlayer localPlayer = new DominoPlayer();
+        localPlayer.userId = "u1";
+        localPlayer.displayName = "Local Player";
+
+        localPlayer.hand = new List<int[]>
+    {
+        new int[]{0,1},
+        new int[]{0,2},
+        new int[]{0,3},
+        new int[]{0,4},
+        new int[]{0,5},
+        new int[]{0,6},
+    };
+
+        currentGame.players.Add(localPlayer);
+
+        currentGame.currentTurnIndex = 0;
+
+        currentGame.board = new LinkedList<Domino>();
+
+        currentGame.board.AddLast(new Domino { left = 6, right = 6 });
+
+        Debug.Log("Offline test game created.");
     }
 }

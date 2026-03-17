@@ -109,12 +109,14 @@ public class DominoTableView : MonoBehaviour
             RenderSeat(topHandAnchor, players[seatToPlayerIndex[2]], isLocal: false);
         if (playerCount > 3)
             RenderSeat(leftHandAnchor, players[seatToPlayerIndex[3]], isLocal: false);
+
+       
+
+        RenderBoard(currentGame.board);
+
+        LogBoard(currentGame.board);
     }
-        // Start is called before the first frame update
-        void Start()
-    {
-        InitTestBoard();
-    }
+
 
     // Update is called once per frame
     void Update()
@@ -191,12 +193,12 @@ public class DominoTableView : MonoBehaviour
     }
 
     public void SpawnBoardTile(
-    DominoPlayer owner,
-    int left,
-    int right,
-    Vector2 position,
-    float scale,
-    Direction direction)
+      DominoPlayer owner,
+      int left,
+      int right,
+      Vector2 position,
+      float scale,
+      Direction direction)
     {
         GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor, false);
         RectTransform rt = tileObj.GetComponent<RectTransform>();
@@ -206,24 +208,70 @@ public class DominoTableView : MonoBehaviour
 
         bool isDouble = left == right;
 
-        if (direction == Direction.Right || direction == Direction.Left)
+        // Ensure correct value touches the board
+        //if (currentGame.board != null && currentGame.board.Count > 0)
+        //{
+        //    if (direction == Direction.Right)
+        //    {
+        //        int boardValue = currentGame.board.Last.Value.right;
+
+        //        if (left != boardValue)
+        //        {
+        //            int temp = left;
+        //            left = right;
+        //            right = temp;
+        //        }
+        //    }
+        //    else if (direction == Direction.Left)
+        //    {
+        //        int boardValue = currentGame.board.First.Value.left;
+
+        //        if (right != boardValue)
+        //        {
+        //            int temp = left;
+        //            left = right;
+        //            right = temp;
+        //        }
+        //    }
+        //}
+
+        // Rotation AFTER flipping
+        if (isDouble)
         {
-            // Horizontal chain
+            rt.localRotation = Quaternion.Euler(0, 0, 0);
+        }
+        else if (direction == Direction.Right)
+        {
+            rt.localRotation = Quaternion.Euler(0, 0, -90);
+        }
+        else if (direction == Direction.Left)
+        {
             rt.localRotation = Quaternion.Euler(0, 0, 90);
         }
         else if (direction == Direction.Down)
-        {
-            // Vertical chain
-            rt.localRotation = Quaternion.Euler(0, 0, 0);
-        }
-
-        if (isDouble)
         {
             rt.localRotation = Quaternion.Euler(0, 0, 0);
         }
 
         DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
         ui.Setup(left, right, owner.selectedSkin);
+    }
+
+    public void LogBoard(LinkedList<Domino> board)
+    {
+        if (board == null || board.Count == 0)
+        {
+            Debug.Log("BOARD: (empty)");
+            return;
+        }
+
+        string s = "BOARD: ";
+        foreach (var t in board)
+        {
+            s += $"[{t.left}|{t.right}] ";
+        }
+
+        Debug.Log(s);
     }
 
     public void TestSpawnBoardTile()
@@ -248,17 +296,21 @@ public class DominoTableView : MonoBehaviour
 
     public void InitTestBoard()
     {
-        testBoard.Clear();
+        if (currentGame == null)
+        {
+            currentGame = new DominoGame();
+            currentGame.board = new LinkedList<Domino>();
+        }
 
-        // Example starting board
-        testBoard.Add(new int[] { 5, 6 });
-        testBoard.Add(new int[] { 6, 3 });
-        testBoard.Add(new int[] { 3, 5 });
+        currentGame.board.Clear();
+
+        currentGame.board.AddLast(new Domino { left = 5, right = 6 });
+        currentGame.board.AddLast(new Domino { left = 6, right = 3 });
+        currentGame.board.AddLast(new Domino { left = 3, right = 5 });
 
         Debug.Log("Initialized test board");
-        PrintBoard();
 
-        RenderBoard(testBoard);
+        RenderBoard(currentGame.board);
     }
 
     void PrintBoard()
@@ -269,8 +321,10 @@ public class DominoTableView : MonoBehaviour
         Debug.Log(s);
     }
 
-    public void RenderBoard(List<int[]> board)
+    public void RenderBoard(LinkedList<Domino> board)
     {
+        var list = new List<Domino>(board);
+
         if (boardAnchor == null) return;
 
         for (int i = boardAnchor.childCount - 1; i >= 0; i--)
@@ -310,8 +364,8 @@ public class DominoTableView : MonoBehaviour
         // center tile
         SpawnBoardTile(
             fakeOwner,
-            board[center][0],
-            board[center][1],
+            list[center].left,
+            list[center].right,
             Vector2.zero,
             scale,
             Direction.Right
@@ -360,8 +414,8 @@ public class DominoTableView : MonoBehaviour
 
                 SpawnBoardTile(
                     fakeOwner,
-                    board[center + step][0],
-                    board[center + step][1],
+                    list[center + step].left,
+                    list[center + step].right,
                     pos,
                     scale,
                     direction
@@ -406,8 +460,8 @@ public class DominoTableView : MonoBehaviour
 
                 SpawnBoardTile(
                     fakeOwner,
-                    board[center - step][0],
-                    board[center - step][1],
+                    list[center - step].left,
+                    list[center - step].right,
                     leftPos,
                     scale,
                     leftDirection
@@ -433,6 +487,7 @@ public class DominoTableView : MonoBehaviour
         }
     }
 
+    /*
     public void TestPlaceLeft()
     {
         int[] tile = new int[] { 5, 2 };
@@ -474,55 +529,7 @@ public class DominoTableView : MonoBehaviour
         PrintBoard();
         RenderBoard(testBoard);
     }
-
-    public void OnTileClicked(int left, int right)
-    {
-        if (!enableLocalPlayTesting)
-            return;
-
-        Debug.Log($"Clicked tile [{left}|{right}]");
-
-        int[] tile = new int[] { left, right };
-
-        if (testBoard.Count == 0)
-        {
-            testBoard.Add(tile);
-            RenderBoard(testBoard);
-            return;
-        }
-
-        int leftEnd = testBoard[0][0];
-        int rightEnd = testBoard[testBoard.Count - 1][1];
-
-        // Try LEFT
-        if (tile[0] == leftEnd || tile[1] == leftEnd)
-        {
-            if (tile[0] == leftEnd)
-                tile = new int[] { tile[1], tile[0] };
-
-            testBoard.Insert(0, tile);
-            Debug.Log("Played LEFT");
-        }
-
-        // Try RIGHT
-        else if (tile[0] == rightEnd || tile[1] == rightEnd)
-        {
-            if (tile[0] != rightEnd)
-                tile = new int[] { tile[1], tile[0] };
-
-            testBoard.Add(tile);
-            Debug.Log("Played RIGHT");
-        }
-        else
-        {
-            Debug.Log("Illegal move");
-            return;
-        }
-
-        PrintBoard();
-        RenderBoard(testBoard);
-    }
-
+    */
 
     public Vector3 GetLeftEndWorldPosition()
     {
