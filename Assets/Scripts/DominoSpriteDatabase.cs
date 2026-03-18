@@ -31,11 +31,22 @@ public class DominoSpriteDatabase : ScriptableObject
 
     public Sprite GetTileSprite(int left, int right)
     {
-        if (lookup.TryGetValue((left, right), out var sprite))
-            return sprite;
+        // Try direct match first
+        foreach (var entry in tiles)
+        {
+            if (entry.left == left && entry.right == right)
+                return entry.sprite;
+        }
 
-        Debug.LogWarning($"Sprite not found for domino {left}|{right}");
+        // Try flipped match — domino sprites are symmetric
+        foreach (var entry in tiles)
+        {
+            if (entry.left == right && entry.right == left)
+                return entry.sprite;
+        }
+
+        Debug.LogWarning($"No sprite found for [{left}|{right}]");
         return null;
     }
-    
+
 }

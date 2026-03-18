@@ -27,15 +27,37 @@ public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEnd
         _left = left;
         _right = right;
 
+        Debug.Log($"[SETUP] Called with left={left}, right={right}");
+
         if (skin != null)
         {
-            tileImage.sprite = skin.GetTileSprite(left, right);
-           
+            int fetchLeft = Mathf.Min(left, right);
+            int fetchRight = Mathf.Max(left, right);
+
+            Debug.Log($"[SETUP] Fetching sprite for [{fetchLeft}|{fetchRight}]");
+
+            Sprite sprite = skin.GetTileSprite(fetchLeft, fetchRight);
+
+            if (sprite == null)
+                Debug.LogError($"[SETUP] Sprite is NULL for [{fetchLeft}|{fetchRight}]!");
+            else
+                Debug.Log($"[SETUP] Sprite found: {sprite.name}");
+
+            tileImage.sprite = sprite;
+            tileImage.transform.localScale = Vector3.one;
+
+            Debug.Log($"[SETUP] tileImage.sprite set to: {(tileImage.sprite != null ? tileImage.sprite.name : "NULL")}");
+            Debug.Log($"[SETUP] tileImage.transform.localScale = {tileImage.transform.localScale}");
+        }
+        else
+        {
+            Debug.LogError($"[SETUP] Skin is NULL for tile [{left}|{right}]!");
         }
 
         if (debugLabel != null)
             debugLabel.text = $"{left}|{right}";
     }
+
     private void Awake()
     { 
         rect = GetComponent<RectTransform>();

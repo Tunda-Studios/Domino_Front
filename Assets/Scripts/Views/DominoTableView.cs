@@ -48,6 +48,11 @@ public class DominoTableView : MonoBehaviour
     [Header("Testing")]
     public bool enableLocalPlayTesting = true;
 
+    // Add these fields to DominoTableView:
+    public int boardCenterIndex = -1;
+    private GameObject leftEndTile;
+    private GameObject rightEndTile;
+
     private void Awake()
     {
         RectTransform tileRect = dominoFacePrefab.GetComponent<RectTransform>();
@@ -117,19 +122,6 @@ public class DominoTableView : MonoBehaviour
         LogBoard(currentGame.board);
     }
 
-
-    // Update is called once per frame
-    void Update()
-    {
-        // Press
-        // to spawn a tile on the board
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            TestSpawnBoardTile();
-        }
-    }
-
-    //render the domino tiles for a specific player's hand
     private void RenderSeat(RectTransform anchor, DominoPlayer player, bool isLocal)
     {
         //validate inputs
@@ -158,7 +150,7 @@ public class DominoTableView : MonoBehaviour
         {
             //local players sees tile faces, oppenents see tile backs
             GameObject prefab = isLocal ? dominoFacePrefab : dominoBackPrefab;
-            GameObject tileObj = Instantiate(prefab, anchor,false);
+            GameObject tileObj = Instantiate(prefab, anchor, false);
 
             RectTransform rt = tileObj.GetComponent<RectTransform>();
 
@@ -166,9 +158,10 @@ public class DominoTableView : MonoBehaviour
             if (verticalSeat)
             {
                 rt.anchoredPosition = new Vector2(0f, start + i * spacing);
-                rt.localRotation = Quaternion.Euler(0, 0, 90);          
+                rt.localRotation = Quaternion.Euler(0, 0, 90);
             }
-            else {
+            else
+            {
                 rt.anchoredPosition = new Vector2(start + i * spacing, 0f);
             }
 
@@ -192,13 +185,205 @@ public class DominoTableView : MonoBehaviour
         }
     }
 
-    public void SpawnBoardTile(
-      DominoPlayer owner,
-      int left,
-      int right,
-      Vector2 position,
-      float scale,
-      Direction direction)
+
+
+    // Update is called once per frame
+    void Update()
+    {
+        // Press
+        // to spawn a tile on the board
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            TestSpawnBoardTile();
+        }
+    }
+
+    //render the domino tiles for a specific player's hand
+    public void RenderBoard(LinkedList<Domino> board)
+    {
+        var list = new List<Domino>(board);
+
+        if (boardAnchor == null) return;
+
+        for (int i = boardAnchor.childCount - 1; i >= 0; i--)
+            Destroy(boardAnchor.GetChild(i).gameObject);
+
+        leftEndTile = null;
+        rightEndTile = null;
+
+        if (board.Count == 0) return;
+
+        int center = (boardCenterIndex >= 0 && boardCenterIndex < list.Count)
+            ? boardCenterIndex
+            : list.Count / 2;
+
+        float scale = 1f;
+        float horizontalStep = tileHeight * scale;
+        float verticalStep = tileHeight * scale;
+
+        float boardHalfWidth = boardAnchor.rect.width / 2f;
+        float edgeMargin = horizontalStep;
+        float rightLimit = boardHalfWidth - edgeMargin;
+        float leftLimit = -boardHalfWidth + edgeMargin;
+
+        DominoPlayer fakeOwner = new DominoPlayer { selectedSkin = defaultSkin };
+
+        // RIGHT SIDE STATE
+        Vector2 pos = Vector2.zero;
+        Direction direction = Direction.Right;
+        int rightVerticalCount = 0;
+        int rightVerticalLength = 2;
+
+        // LEFT SIDE STATE
+        Vector2 leftPos = Vector2.zero;
+        Direction leftDirection = Direction.Left;
+        int leftVerticalCount = 0;
+
+        // Center tile: connect to left neighbor if one exists
+        int centerConnectValue = (center > 0) ? list[center - 1].right : -1;
+
+        GameObject centerObj = SpawnBoardTile(
+            fakeOwner,
+            list[center].left,
+            list[center].right,
+            Vector2.zero,
+            scale,
+            Direction.Right,
+            centerConnectValue
+        );
+
+        leftEndTile = centerObj;
+        rightEndTile = centerObj;
+
+        for (int step = 1; step <= center || center + step < board.Count; step++)
+        {
+            // RIGHT SIDE
+            if (center + step < board.Count)
+            {
+                switch (direction)
+                {
+                    case Direction.Right:
+                        if (pos.x + horizontalStep > rightLimit)
+                        {
+                            direction = Direction.Down;
+                            rightVerticalCount = 0;
+                            pos.y -= verticalStep;
+                            rightVerticalCount++;
+                            break;
+                        }
+                        pos.x += horizontalStep;
+                        break;
+
+                    case Direction.Left:
+                        if (pos.x - horizontalStep < leftLimit)
+                        {
+                            direction = Direction.Down;
+                            rightVerticalCount = 0;
+                            pos.y -= verticalStep;
+                            rightVerticalCount++;
+                            break;
+                        }
+                        pos.x -= horizontalStep;
+                        break;
+
+                    case Direction.Down:
+                        pos.y -= verticalStep;
+                        rightVerticalCount++;
+                        break;
+                }
+
+                // connectValue = right side of the previous tile in the snapshot
+                int rightConnectValue = list[center + step - 1].right;
+
+                GameObject rightObj = SpawnBoardTile(
+                    fakeOwner,
+                    list[center + step].left,
+                    list[center + step].right,
+                    pos,
+                    scale,
+                    direction,
+                    rightConnectValue
+                );
+
+                rightEndTile = rightObj;
+
+                if (direction == Direction.Right && pos.x >= rightLimit)
+                {
+                    direction = Direction.Down;
+                    rightVerticalCount = 0;
+                }
+                else if (direction == Direction.Left && pos.x <= leftLimit)
+                {
+                    direction = Direction.Down;
+                    rightVerticalCount = 0;
+                }
+                else if (direction == Direction.Down && rightVerticalCount >= rightVerticalLength)
+                {
+                    rightVerticalCount = 0;
+                    direction = (pos.x > 0) ? Direction.Left : Direction.Right;
+                }
+            }
+
+            // LEFT SIDE
+            if (center - step >= 0)
+            {
+                switch (leftDirection)
+                {
+                    case Direction.Left:
+                        leftPos.x -= horizontalStep;
+                        break;
+                    case Direction.Right:
+                        leftPos.x += horizontalStep;
+                        break;
+                    case Direction.Down:
+                        leftPos.y += verticalStep;
+                        leftVerticalCount++;
+                        break;
+                }
+
+                // connectValue = left side of the tile to its right in the snapshot
+                int leftConnectValue = list[center - step + 1].left;
+
+                GameObject leftObj = SpawnBoardTile(
+                    fakeOwner,
+                    list[center - step].left,
+                    list[center - step].right,
+                    leftPos,
+                    scale,
+                    leftDirection,
+                    leftConnectValue
+                );
+
+                leftEndTile = leftObj;
+
+                if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
+                {
+                    leftDirection = Direction.Down;
+                    leftVerticalCount = 0;
+                }
+                else if (leftDirection == Direction.Right && leftPos.x >= rightLimit)
+                {
+                    leftDirection = Direction.Down;
+                    leftVerticalCount = 0;
+                }
+                else if (leftDirection == Direction.Down && leftVerticalCount >= 2)
+                {
+                    leftVerticalCount = 0;
+                    leftDirection = (leftPos.x > 0) ? Direction.Left : Direction.Right;
+                }
+            }
+        }
+    }
+
+
+    public GameObject SpawnBoardTile(
+        DominoPlayer owner,
+        int left,
+        int right,
+        Vector2 position,
+        float scale,
+        Direction direction,
+        int connectValue = -1)
     {
         GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor, false);
         RectTransform rt = tileObj.GetComponent<RectTransform>();
@@ -207,55 +392,60 @@ public class DominoTableView : MonoBehaviour
         rt.localScale = Vector3.one * scale;
 
         bool isDouble = left == right;
+        int originalLeft = left;
+        int originalRight = right;
 
-        // Ensure correct value touches the board
-        //if (currentGame.board != null && currentGame.board.Count > 0)
-        //{
-        //    if (direction == Direction.Right)
-        //    {
-        //        int boardValue = currentGame.board.Last.Value.right;
+        Debug.Log($"[RENDER] -------------------------");
+        Debug.Log($"[RENDER] Input tile = [{originalLeft}|{originalRight}]");
+        Debug.Log($"[RENDER] Direction = {direction}");
+        Debug.Log($"[RENDER] Position = {position}");
+        Debug.Log($"[RENDER] ConnectValue = {connectValue}");
 
-        //        if (left != boardValue)
-        //        {
-        //            int temp = left;
-        //            left = right;
-        //            right = temp;
-        //        }
-        //    }
-        //    else if (direction == Direction.Left)
-        //    {
-        //        int boardValue = currentGame.board.First.Value.left;
-
-        //        if (right != boardValue)
-        //        {
-        //            int temp = left;
-        //            left = right;
-        //            right = temp;
-        //        }
-        //    }
-        //}
-
-        // Rotation AFTER flipping
-        if (isDouble)
+        if (connectValue != -1)
         {
-            rt.localRotation = Quaternion.Euler(0, 0, 0);
+            if (direction == Direction.Right && left != connectValue)
+            {
+                (left, right) = (right, left);
+                Debug.Log($"[RENDER FIX] Flipped for RIGHT -> [{left}|{right}]");
+            }
+            else if (direction == Direction.Left && right != connectValue)
+            {
+                (left, right) = (right, left);
+                Debug.Log($"[RENDER FIX] Flipped for LEFT -> [{left}|{right}]");
+            }
+            else
+            {
+                Debug.Log($"[RENDER FIX] No flip needed -> [{left}|{right}]");
+            }
         }
+
+        if (isDouble)
+            rt.localRotation = Quaternion.Euler(0, 0, 0);
         else if (direction == Direction.Right)
         {
-            rt.localRotation = Quaternion.Euler(0, 0, -90);
+            // If left > right, sprite has high on top — rotate +90 to put high on left
+            // If left < right, sprite has low on top — rotate -90 to put low on right  
+            bool highOnLeft = (left > right);
+            rt.localRotation = Quaternion.Euler(0, 0, highOnLeft ? -90 : 90);
         }
         else if (direction == Direction.Left)
         {
-            rt.localRotation = Quaternion.Euler(0, 0, 90);
+            bool highOnLeft = (left > right);
+            rt.localRotation = Quaternion.Euler(0, 0, highOnLeft ? 90 : -90);
         }
         else if (direction == Direction.Down)
         {
-            rt.localRotation = Quaternion.Euler(0, 0, 0);
+            bool highOnTop = (left > right);
+            rt.localRotation = Quaternion.Euler(0, 0, highOnTop ? 180 : 0);
         }
 
+        // Simple call — no flip params needed
         DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
         ui.Setup(left, right, owner.selectedSkin);
+        rt.localScale = Vector3.one * scale;
+        return tileObj;
     }
+
 
     public void LogBoard(LinkedList<Domino> board)
     {
@@ -321,171 +511,6 @@ public class DominoTableView : MonoBehaviour
         Debug.Log(s);
     }
 
-    public void RenderBoard(LinkedList<Domino> board)
-    {
-        var list = new List<Domino>(board);
-
-        if (boardAnchor == null) return;
-
-        for (int i = boardAnchor.childCount - 1; i >= 0; i--)
-            Destroy(boardAnchor.GetChild(i).gameObject);
-
-        if (board.Count == 0) return;
-
-        float scale = 1f;
-
-        float horizontalStep = tileHeight * scale;
-        float verticalStep = tileHeight * scale;
-
-        float boardHalfWidth = boardAnchor.rect.width / 2f;
-
-        float edgeMargin = horizontalStep;
-        float rightLimit = boardHalfWidth - edgeMargin;
-        float leftLimit = -boardHalfWidth + edgeMargin;
-
-        DominoPlayer fakeOwner = new DominoPlayer
-        {
-            selectedSkin = defaultSkin
-        };
-
-        int center = board.Count / 2;
-
-        // RIGHT SIDE STATE
-        Vector2 pos = Vector2.zero;
-        Direction direction = Direction.Right;
-        int verticalCount = 0;
-        int verticalLength = 2;
-
-        // LEFT SIDE STATE
-        Vector2 leftPos = Vector2.zero;
-        Direction leftDirection = Direction.Left;
-        int leftVerticalCount = 0;
-
-        // center tile
-        SpawnBoardTile(
-            fakeOwner,
-            list[center].left,
-            list[center].right,
-            Vector2.zero,
-            scale,
-            Direction.Right
-        );
-
-        // render outward
-        for (int step = 1; step <= center || center + step < board.Count; step++)
-        {
-
-            // RIGHT SIDE 
-            if (center + step < board.Count)
-            {
-                switch (direction)
-                {
-                    case Direction.Right:
-                        if (pos.x + horizontalStep > rightLimit)
-                        {
-                            direction = Direction.Down;
-                            verticalCount = 0;
-                            pos.y -= verticalStep;
-                            verticalCount++;
-                            break;
-                        }
-
-                        pos.x += horizontalStep;
-                        break;
-
-                    case Direction.Left:
-                        if (pos.x - horizontalStep < leftLimit)
-                        {
-                            direction = Direction.Down;
-                            verticalCount = 0;
-                            pos.y -= verticalStep;
-                            verticalCount++;
-                            break;
-                        }
-
-                        pos.x -= horizontalStep;
-                        break;
-
-                    case Direction.Down:
-                        pos.y -= verticalStep;
-                        verticalCount++;
-                        break;
-                }
-
-                SpawnBoardTile(
-                    fakeOwner,
-                    list[center + step].left,
-                    list[center + step].right,
-                    pos,
-                    scale,
-                    direction
-                );
-
-                // TURN LOGIC
-                if (direction == Direction.Right && pos.x >= rightLimit)
-                {
-                    direction = Direction.Down;
-                    verticalCount = 0;
-                }
-                else if (direction == Direction.Left && pos.x <= leftLimit)
-                {
-                    direction = Direction.Down;
-                    verticalCount = 0;
-                }
-                else if (direction == Direction.Down && verticalCount >= verticalLength)
-                {
-                    verticalCount = 0;
-                    direction = (pos.x > 0) ? Direction.Left : Direction.Right;
-                }
-            }
-
-            // LEFT SIDE
-            if (center - step >= 0)
-            {
-                switch (leftDirection)
-                {
-                    case Direction.Left:
-                        leftPos.x -= horizontalStep;
-                        break;
-
-                    case Direction.Right:
-                        leftPos.x += horizontalStep;
-                        break;
-
-                    case Direction.Down:
-                        leftPos.y += verticalStep;
-                        leftVerticalCount++;
-                        break;
-                }
-
-                SpawnBoardTile(
-                    fakeOwner,
-                    list[center - step].left,
-                    list[center - step].right,
-                    leftPos,
-                    scale,
-                    leftDirection
-                );
-
-                // TURN LOGIC (mirror of right side)
-                if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
-                {
-                    leftDirection = Direction.Down;
-                    leftVerticalCount = 0;
-                }
-                else if (leftDirection == Direction.Right && leftPos.x >= rightLimit)
-                {
-                    leftDirection = Direction.Down;
-                    leftVerticalCount = 0;
-                }
-                else if (leftDirection == Direction.Down && leftVerticalCount >= verticalLength)
-                {
-                    leftVerticalCount = 0;
-                    leftDirection = (leftPos.x > 0) ? Direction.Left : Direction.Right;
-                }
-            }
-        }
-    }
 
     /*
     public void TestPlaceLeft()
@@ -535,7 +560,6 @@ public class DominoTableView : MonoBehaviour
     {
         if (boardAnchor.childCount == 0)
             return boardAnchor.position;
-
         return boardAnchor.GetChild(0).position;
     }
 
@@ -543,7 +567,6 @@ public class DominoTableView : MonoBehaviour
     {
         if (boardAnchor.childCount == 0)
             return boardAnchor.position;
-
         return boardAnchor.GetChild(boardAnchor.childCount - 1).position;
     }
 }
