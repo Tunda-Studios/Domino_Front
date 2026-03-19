@@ -444,169 +444,180 @@ public class DominoGameController : MonoBehaviour
 
     public async void TryPlayTile(Domino tile, Vector2 dropPosition, DominoTileUI tileUI)
     {
-        // Determine which side of the board the tile should go
+        // STEP 1: Read glow direction BEFORE hiding anything
+        Direction glowDir = tableView.GetClosestGlowDirection(dropPosition);
+        Direction? hoverDir = (glowDir != Direction.Invalid) ? glowDir : (Direction?)null;
 
-        Direction chosenDirection = DecidePlacementFromDrop(tile, dropPosition);
+        Debug.Log($"[TRY_PLAY] -------------------------");
+        Debug.Log($"[TRY_PLAY] Tile = [{tile.left}|{tile.right}]");
+        Debug.Log($"[TRY_PLAY] DropPosition = {dropPosition}");
+        Debug.Log($"[TRY_PLAY] GlowDir = {glowDir}");
+        Debug.Log($"[TRY_PLAY] HoverDir = {hoverDir}");
 
-        if (chosenDirection == Direction.Invalid)
+        // STEP 2: Now hide the glows
+        tableView.HideDropHints();
+
+        if (currentGame == null || currentGame.players == null || currentGame.players.Count == 0)
         {
             tileUI.ReturnToHand();
             return;
         }
 
-        BoardEnd end = chosenDirection == Direction.Left ? BoardEnd.LEFT : BoardEnd.RIGHT;
+        var player = currentGame.players[0];
 
-        // OFFLINE LOCAL TESTING MODE
-
-        if (tableView.enableLocalPlayTesting)
+        // EMPTY BOARD CASE
+        if (currentGame.board.Count == 0)
         {
-            if (currentGame == null || currentGame.players == null || currentGame.players.Count == 0)
-            {
-                Debug.LogError("Offline play failed. Game state invalid.");
-                tileUI.ReturnToHand();
-                return;
-            }
-
-            var player = currentGame.players[0];
-
-            bool removed = false;
-            for (int i = 0; i < player.hand.Count; i++)
-            {
-                var handTile = player.hand[i];
-                if (handTile[0] == tile.left && handTile[1] == tile.right)
-                {
-                    player.hand.RemoveAt(i);
-                    removed = true;
-                    break;
-                }
-            }
-
-            if (!removed)
-            {
-                Debug.LogWarning("Tile not found in hand.");
-                tileUI.ReturnToHand();
-                return;
-            }
-
-            if (currentGame.board.Count == 0)
-            {
-                currentGame.board.AddFirst(tile);
-                tableView.boardCenterIndex = 0;
-            }
-            else if (end == BoardEnd.LEFT)
-            {
-                int boardValue = currentGame.board.First.Value.left;
-                if (tile.right != boardValue)
-                {
-                    int temp = tile.left;
-                    tile.left = tile.right;
-                    tile.right = temp;
-                }
-                currentGame.board.AddFirst(tile);
-                tableView.boardCenterIndex++; // shift center when prepending
-            }
-            else
-            {
-                int boardValue = currentGame.board.Last.Value.right;
-                if (tile.left != boardValue)
-                {
-                    int temp = tile.left;
-                    tile.left = tile.right;
-                    tile.right = temp;
-                }
-                currentGame.board.AddLast(tile);
-                // center unchanged when appending
-            }
-
-            tableView.BuildTable(); // single call — replaces the old double render
+            currentGame.board.AddFirst(new Domino { left = tile.left, right = tile.right });
+            tableView.boardCenterIndex = 0;
+            tableView.BuildTable();
             return;
         }
 
-        // ONLINE PLAY
-
-
-        if (!IsMyTurn(currentGame))
+        // STEP 3: Use the direction we captured before hiding
+        if (hoverDir == null)
         {
-            Debug.Log("Not your turn.");
+            Debug.Log("[DROP] No valid glow to drop on");
             tileUI.ReturnToHand();
             return;
         }
 
-        try
+        Direction dir = hoverDir.Value;
+
+        // GET BOARD VALUE
+        int boardValue = (dir == Direction.Left)
+            ? currentGame.board.First.Value.left
+            : currentGame.board.Last.Value.right;
+
+        // VALIDATE MATCH
+        bool isValid = tile.left == boardValue || tile.right == boardValue;
+
+        if (!isValid)
         {
-            var req = new MoveRequest
-            {
-                tile = new int[] { tile.left, tile.right },
-                end = end.ToString().ToLower()
-            };
-
-            string body = JsonConvert.SerializeObject(req);
-
-            string res = await apiClient.Post(
-                $"/api/games/{gameId}/move",
-                body
-            );
-
-            if (string.IsNullOrEmpty(res))
-            {
-                Debug.LogWarning("Server returned empty response.");
-                tileUI.ReturnToHand();
-                return;
-            }
-
-            DominoGame updated = JsonConvert.DeserializeObject<DominoGame>(res);
-
-            ApplyGameState(updated);
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"Move request failed: {e.Message}");
+            Debug.Log("[DROP] Invalid move - no match");
             tileUI.ReturnToHand();
+            return;
+        }
+
+        // NORMALIZE TILE
+        if (dir == Direction.Left)
+        {
+            // Attaching to LEFT: tile's RIGHT must match boardValue
+            if (tile.right != boardValue)
+            {
+                int temp = tile.left;
+                tile.left = tile.right;
+                tile.right = temp;
+            }
+        }
+        else
+        {
+            // Attaching to RIGHT: tile's LEFT must match boardValue
+            if (tile.left != boardValue)
+            {
+                int temp = tile.left;
+                tile.left = tile.right;
+                tile.right = temp;
+            }
+        }
+
+        // REMOVE TILE FROM HAND
+        bool removed = false;
+
+        for (int i = 0; i < player.hand.Count; i++)
+        {
+            var h = player.hand[i];
+
+            if (
+                (h[0] == tile.left && h[1] == tile.right) ||
+                (h[0] == tile.right && h[1] == tile.left)
+            )
+            {
+                player.hand.RemoveAt(i);
+                removed = true;
+                break;
+            }
+        }
+
+        if (!removed)
+        {
+            Debug.Log("[DROP] Tile not found in hand");
+            tileUI.ReturnToHand();
+            return;
+        }
+
+        // PLACE TILE
+        if (dir == Direction.Left)
+        {
+            currentGame.board.AddFirst(new Domino { left = tile.left, right = tile.right });
+            tableView.boardCenterIndex++;
+        }
+        else
+        {
+            currentGame.board.AddLast(new Domino { left = tile.left, right = tile.right });
+        }
+
+        // DEBUG BOARD STATE
+        Debug.Log("[BOARD AFTER MOVE]");
+        foreach (var t in currentGame.board)
+        {
+            Debug.Log($"[{t.left}|{t.right}]");
+        }
+
+        // RESET STATE
+        tableView.currentHoverDirection = null;
+
+        tableView.BuildTable();
+    }
+
+    private void NormalizeTileForEnd(Domino tile, int boardValue, bool placingLeft)
+    {
+        if (placingLeft)
+        {
+            // We are attaching to LEFT side of board
+            // So tile.RIGHT must match boardValue
+            if (tile.right != boardValue)
+            {
+                (tile.left, tile.right) = (tile.right, tile.left);
+            }
+        }
+        else
+        {
+            // We are attaching to RIGHT side of board
+            // So tile.LEFT must match boardValue
+            if (tile.left != boardValue)
+            {
+                (tile.left, tile.right) = (tile.right, tile.left);
+            }
         }
     }
 
-
     private Direction DecidePlacementFromDrop(Domino tile, Vector2 dropPosition)
     {
-        Debug.Log($"[DROP] Tile = [{tile.left}|{tile.right}]");
-        Debug.Log($"[DROP] DropPosition = {dropPosition}");
-
-        Vector3 leftPos = tableView.GetLeftEndWorldPosition();
-        Vector3 rightPos = tableView.GetRightEndWorldPosition();
-
-        float distLeft = Vector2.Distance(dropPosition, leftPos);
-        float distRight = Vector2.Distance(dropPosition, rightPos);
-
-        Debug.Log($"[DROP] LeftPos = {leftPos}, RightPos = {rightPos}");
-        Debug.Log($"[DROP] distLeft = {distLeft}, distRight = {distRight}");
-
-        Direction chosenEnd = distLeft < distRight ? Direction.Left : Direction.Right;
-        Debug.Log($"[DROP] chosenEnd = {chosenEnd}");
-
         int leftEnd = currentGame.board.First.Value.left;
         int rightEnd = currentGame.board.Last.Value.right;
 
         bool matchLeft = tile.left == leftEnd || tile.right == leftEnd;
         bool matchRight = tile.left == rightEnd || tile.right == rightEnd;
 
-        Debug.Log($"[DROP] leftEnd = {leftEnd}, rightEnd = {rightEnd}");
-        Debug.Log($"[DROP] matchLeft = {matchLeft}, matchRight = {matchRight}");
+        // PRIORITY 1: VALIDITY
+        if (matchLeft && !matchRight)
+            return Direction.Left;
 
-        //  STRICT VALIDATION (NO SILENT OVERRIDE)
-        if (chosenEnd == Direction.Left && !matchLeft)
-        {
-            Debug.LogWarning("[DROP] Invalid move on LEFT");
+        if (matchRight && !matchLeft)
+            return Direction.Right;
+
+        if (!matchLeft && !matchRight)
             return Direction.Invalid;
-        }
 
-        if (chosenEnd == Direction.Right && !matchRight)
-        {
-            Debug.LogWarning("[DROP] Invalid move on RIGHT");
-            return Direction.Invalid;
-        }
+        // PRIORITY 2: DISTANCE (only if both valid)
+        Vector3 leftPos = tableView.GetLeftEndWorldPosition();
+        Vector3 rightPos = tableView.GetRightEndWorldPosition();
 
-        Debug.Log($"[FINAL DECISION] direction = {chosenEnd}");
-        return chosenEnd;
+        float distLeft = Vector2.Distance(dropPosition, leftPos);
+        float distRight = Vector2.Distance(dropPosition, rightPos);
+
+        return distLeft < distRight ? Direction.Left : Direction.Right;
     }
 
     private void SetSelectedTile(DominoTileUI tileUI)
@@ -651,6 +662,7 @@ public class DominoGameController : MonoBehaviour
         new int[]{0,5},
         new int[]{0,6},
          new int[]{1,5},
+         new int[]{6,3},
     };
 
         currentGame.players.Add(localPlayer);

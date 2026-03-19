@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using TMPro;
 using UnityEngine.EventSystems;
 
+
 public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
     [SerializeField] private Image tileImage;
@@ -92,8 +93,18 @@ public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEnd
     public void OnDrag(PointerEventData eventData)
     {
         rect.anchoredPosition += eventData.delta / canvas.scaleFactor;
-    }
 
+        if (table != null)
+        {
+            Domino tile = new Domino
+            {
+                left = _left,
+                right = _right
+            };
+
+            table.HandleTileDragging(eventData.position, tile);
+        }
+    }
     public void OnEndDrag(PointerEventData eventData)
     {
         Domino tile = new Domino
@@ -102,7 +113,10 @@ public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEnd
             right = _right
         };
 
-        DominoGameController.Instance.TryPlayTile(tile, rect.position, this);
+        DominoGameController.Instance.TryPlayTile(tile, eventData.position, this);
+
+        if (table != null)
+            table.HideDropHints();
     }
 
     public void ReturnToHand()

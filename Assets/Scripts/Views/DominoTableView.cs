@@ -22,6 +22,11 @@ public class DominoTableView : MonoBehaviour
     [Header("UNITY TEST BOARD")]
     public List<int[]> testBoard = new List<int[]>();
 
+    [Header("Glow Hints")]
+    public RectTransform leftGlow;
+    public RectTransform rightGlow;
+    public float glowScaleMultiplier = 1.15f;
+
     float tileWidth;
     float tileHeight;
 
@@ -53,12 +58,68 @@ public class DominoTableView : MonoBehaviour
     private GameObject leftEndTile;
     private GameObject rightEndTile;
 
+    private Direction leftEndDirection;
+    private Direction rightEndDirection;
+
+    private bool isLeftGlowActive = false;
+    private bool isRightGlowActive = false;
+
+    public Direction? currentHoverDirection = null;
+
     private void Awake()
     {
         RectTransform tileRect = dominoFacePrefab.GetComponent<RectTransform>();
         tileWidth = tileRect.rect.width;
         tileHeight = tileRect.rect.height;
     }
+    private void Start()
+    {
+        HideDropHints();
+    }
+
+    public void HideDropHints()
+    {
+        if (leftGlow != null)
+            leftGlow.gameObject.SetActive(false);
+
+        if (rightGlow != null)
+            rightGlow.gameObject.SetActive(false);
+    }
+
+    public void HideLeftGlow()
+    {
+        if (leftGlow != null)
+            leftGlow.gameObject.SetActive(false);
+    }
+
+    public void HideRightGlow()
+    {
+        if (rightGlow != null)
+            rightGlow.gameObject.SetActive(false);
+    }
+
+    public void ShowLeftGlow(Vector2 anchoredPosition, float boardScale)
+    {
+        if (leftGlow == null)
+        {
+            return;
+        }
+
+        leftGlow.anchoredPosition = anchoredPosition;
+        leftGlow.localScale = Vector3.one * boardScale * glowScaleMultiplier;
+        leftGlow.gameObject.SetActive(true);
+    }
+
+    public void ShowRightGlow(Vector2 anchoredPosition, float boardScale)
+    {
+        if (rightGlow == null)
+            return;
+
+        rightGlow.anchoredPosition = anchoredPosition;
+        rightGlow.localScale = Vector3.one * boardScale * glowScaleMultiplier;
+        rightGlow.gameObject.SetActive(true);
+    }
+
     //build table UI by rendering all hands
     public void BuildTable()
     {
@@ -206,7 +267,14 @@ public class DominoTableView : MonoBehaviour
         if (boardAnchor == null) return;
 
         for (int i = boardAnchor.childCount - 1; i >= 0; i--)
-            Destroy(boardAnchor.GetChild(i).gameObject);
+        {
+            Transform child = boardAnchor.GetChild(i);
+
+            if (child.GetComponent<DominoTileUI>() != null)
+            {
+                Destroy(child.gameObject);
+            }
+        }
 
         leftEndTile = null;
         rightEndTile = null;
@@ -306,6 +374,7 @@ public class DominoTableView : MonoBehaviour
                 );
 
                 rightEndTile = rightObj;
+                rightEndDirection = direction;
 
                 if (direction == Direction.Right && pos.x >= rightLimit)
                 {
@@ -355,6 +424,7 @@ public class DominoTableView : MonoBehaviour
                 );
 
                 leftEndTile = leftObj;
+                leftEndDirection = leftDirection;
 
                 if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
                 {
@@ -375,6 +445,20 @@ public class DominoTableView : MonoBehaviour
         }
     }
 
+    Vector2 GetNextPositionOffset(Direction direction, float step)
+    {
+        switch (direction)
+        {
+            case Direction.Right:
+                return new Vector2(step, 0);
+            case Direction.Left:
+                return new Vector2(-step, 0);
+            case Direction.Down:
+                return new Vector2(0, -step);
+            default:
+                return Vector2.zero;
+        }
+    }
 
     public GameObject SpawnBoardTile(
         DominoPlayer owner,
@@ -386,6 +470,7 @@ public class DominoTableView : MonoBehaviour
         int connectValue = -1)
     {
         GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor, false);
+        tileObj.tag = "BoardTile";
         RectTransform rt = tileObj.GetComponent<RectTransform>();
 
         rt.anchoredPosition = position;
@@ -503,6 +588,181 @@ public class DominoTableView : MonoBehaviour
         RenderBoard(currentGame.board);
     }
 
+    public void HandleTileDragging(Vector2 screenPosition, Domino tile)
+    {
+        Debug.Log($"[DRAG] -------------------------");
+        Debug.Log($"[DRAG] Tile = [{tile.left}|{tile.right}]");
+
+        if (currentGame == null || currentGame.board == null || currentGame.board.Count == 0)
+        {
+            Debug.Log("[DRAG] Board invalid");
+            HideDropHints();
+            currentHoverDirection = null;
+            return;
+        }
+
+        int leftEnd = currentGame.board.First.Value.left;
+        int rightEnd = currentGame.board.Last.Value.right;
+
+        bool matchLeft = tile.left == leftEnd || tile.right == leftEnd;
+        bool matchRight = tile.left == rightEnd || tile.right == rightEnd;
+
+        Debug.Log($"[DRAG] matchLeft={matchLeft}, matchRight={matchRight}");
+
+        Vector2 leftPos = Vector2.zero;
+        Vector2 rightPos = Vector2.zero;
+
+        if (leftEndTile != null)
+        {
+            RectTransform leftRT = leftEndTile.GetComponent<RectTransform>();
+            leftPos = leftRT.anchoredPosition + new Vector2(-tileHeight, 0);
+        }
+
+        if (rightEndTile != null)
+        {
+            RectTransform rightRT = rightEndTile.GetComponent<RectTransform>();
+            rightPos = rightRT.anchoredPosition + new Vector2(tileHeight, 0);
+        }
+
+        // Convert pointer to LOCAL space (CRITICAL)
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            boardAnchor,
+            screenPosition,
+            null,
+            out Vector2 localPoint
+        );
+
+        Debug.Log($"[DRAG] localPoint={localPoint}");
+        Debug.Log($"[DRAG] leftPos={leftPos}, rightPos={rightPos}");
+
+        // RESET STATE
+        HideLeftGlow();
+        HideRightGlow();
+        isLeftGlowActive = false;
+        isRightGlowActive = false;
+        currentHoverDirection = null;
+
+        // Compute distance to BOTH ends
+        float distLeft = Vector2.Distance(localPoint, leftPos);
+        float distRight = Vector2.Distance(localPoint, rightPos);
+
+        Debug.Log($"[DRAG] distLeft={distLeft}, distRight={distRight}");
+
+        // Decide based on closest VALID side
+        // Decide based on closest VALID side
+        if (matchLeft && matchRight)
+        {
+            // Show BOTH glows — let proximity decide on drop
+            Debug.Log("[DRAG] SHOW BOTH (double match)");
+            ShowLeftGlow(leftPos, 1f);
+            ShowRightGlow(rightPos, 1f);
+            isLeftGlowActive = true;
+            isRightGlowActive = true;
+
+            // Set hover direction to whichever side is closer RIGHT NOW
+            currentHoverDirection = (distLeft < distRight) ? Direction.Left : Direction.Right;
+        }
+        else if (matchLeft)
+        {
+            Debug.Log("[DRAG] SHOW LEFT");
+            ShowLeftGlow(leftPos, 1f);
+            isLeftGlowActive = true;
+            currentHoverDirection = Direction.Left;
+        }
+        else if (matchRight)
+        {
+            Debug.Log("[DRAG] SHOW RIGHT");
+            ShowRightGlow(rightPos, 1f);
+            isRightGlowActive = true;
+            currentHoverDirection = Direction.Right;
+        }
+        else
+        {
+            Debug.Log("[DRAG] No valid side");
+            currentHoverDirection = null;
+        }
+    }
+
+    public Direction GetClosestGlowDirection(Vector2 screenPosition)
+    {
+        Debug.Log($"[GLOW_DIR] -------------------------");
+        Debug.Log($"[GLOW_DIR] screenPosition = {screenPosition}");
+        Debug.Log($"[GLOW_DIR] leftGlow = {(leftGlow == null ? "NULL" : leftGlow.name)}");
+        Debug.Log($"[GLOW_DIR] rightGlow = {(rightGlow == null ? "NULL" : rightGlow.name)}");
+
+        bool leftActive = leftGlow != null && leftGlow.gameObject.activeSelf;
+        bool rightActive = rightGlow != null && rightGlow.gameObject.activeSelf;
+
+        Debug.Log($"[GLOW_DIR] leftActive = {leftActive}");
+        Debug.Log($"[GLOW_DIR] rightActive = {rightActive}");
+
+        if (leftActive && !rightActive)
+        {
+            Debug.Log("[GLOW_DIR] Only left active -> LEFT");
+            return Direction.Left;
+        }
+
+        if (rightActive && !leftActive)
+        {
+            Debug.Log("[GLOW_DIR] Only right active -> RIGHT");
+            return Direction.Right;
+        }
+
+        if (!leftActive && !rightActive)
+        {
+            Debug.Log("[GLOW_DIR] BOTH inactive -> INVALID");
+            return Direction.Invalid;
+        }
+
+        // Both active — find closest
+        Canvas canvas = boardAnchor.GetComponentInParent<Canvas>();
+        Camera cam = null;
+
+        if (canvas != null)
+        {
+            Debug.Log($"[GLOW_DIR] Canvas renderMode = {canvas.renderMode}");
+            if (canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+                cam = canvas.worldCamera;
+        }
+        else
+        {
+            Debug.Log("[GLOW_DIR] Canvas is NULL");
+        }
+
+        bool converted = RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            boardAnchor,
+            screenPosition,
+            cam,
+            out Vector2 localPoint
+        );
+
+        Debug.Log($"[GLOW_DIR] converted = {converted}");
+        Debug.Log($"[GLOW_DIR] localPoint = {localPoint}");
+        Debug.Log($"[GLOW_DIR] leftGlow.anchoredPosition = {leftGlow.anchoredPosition}");
+        Debug.Log($"[GLOW_DIR] rightGlow.anchoredPosition = {rightGlow.anchoredPosition}");
+
+        if (!converted)
+        {
+            Debug.Log("[GLOW_DIR] Conversion failed -> INVALID");
+            return Direction.Invalid;
+        }
+
+        float distLeft = Vector2.Distance(localPoint, leftGlow.anchoredPosition);
+        float distRight = Vector2.Distance(localPoint, rightGlow.anchoredPosition);
+
+        Debug.Log($"[GLOW_DIR] distLeft = {distLeft}, distRight = {distRight}");
+
+        Direction result = distLeft < distRight ? Direction.Left : Direction.Right;
+        Debug.Log($"[GLOW_DIR] Result = {result}");
+        return result;
+    }
+
+    public void ClearGlow()
+    {
+      //  leftGlow.SetActive(false);
+       // rightGlow.SetActive(false);
+    }
+
     void PrintBoard()
     {
         string s = "BOARD: ";
@@ -558,15 +818,17 @@ public class DominoTableView : MonoBehaviour
 
     public Vector3 GetLeftEndWorldPosition()
     {
-        if (boardAnchor.childCount == 0)
-            return boardAnchor.position;
-        return boardAnchor.GetChild(0).position;
+        if (leftEndTile != null)
+            return leftEndTile.GetComponent<RectTransform>().position;
+
+        return boardAnchor.position;
     }
 
     public Vector3 GetRightEndWorldPosition()
     {
-        if (boardAnchor.childCount == 0)
-            return boardAnchor.position;
-        return boardAnchor.GetChild(boardAnchor.childCount - 1).position;
+        if (rightEndTile != null)
+            return rightEndTile.GetComponent<RectTransform>().position;
+
+        return boardAnchor.position;
     }
 }
