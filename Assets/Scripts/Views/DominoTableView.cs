@@ -98,25 +98,85 @@ public class DominoTableView : MonoBehaviour
             rightGlow.gameObject.SetActive(false);
     }
 
-    public void ShowLeftGlow(Vector2 anchoredPosition, float boardScale)
+    public void ShowLeftGlow(Vector2 anchoredPosition, float boardScale, Domino tile)
     {
-        if (leftGlow == null)
-        {
+        if (leftGlow == null || currentGame == null || currentGame.board.Count == 0)
             return;
-        }
+
+        int leftConnect = currentGame.board.First.Value.left;
+
+        RectTransform leftRT = leftEndTile.GetComponent<RectTransform>();
+
+        Direction previewDir = GetNextDirection(
+           leftEndDirection,
+           leftRT.anchoredPosition
+       );
+
+        Debug.Log($"[LEFT_GLOW] -------------------------");
+        Debug.Log($"[LEFT_GLOW] Drag tile = [{tile.left}|{tile.right}]");
+        Debug.Log($"[LEFT_GLOW] leftEndDirection = {leftEndDirection}");
+        Debug.Log($"[LEFT_GLOW] leftConnect = {leftConnect}");
+        Debug.Log($"[LEFT_GLOW] anchoredPosition = {anchoredPosition}");
+
+        GetPreviewTile(
+        tile.left,
+        tile.right,
+        previewDir,
+        leftConnect,
+        out int previewLeft,
+        out int previewRight
+        );
+
+        Quaternion rotation = GetTileRotation(previewLeft, previewRight, previewDir);
+
+        Debug.Log($"[LEFT_GLOW] preview tile = [{previewLeft}|{previewRight}]");
+        Debug.Log($"[LEFT_GLOW] final rotation z = {rotation.eulerAngles.z}");
 
         leftGlow.anchoredPosition = anchoredPosition;
         leftGlow.localScale = Vector3.one * boardScale * glowScaleMultiplier;
+        leftGlow.localRotation = rotation;
         leftGlow.gameObject.SetActive(true);
     }
 
-    public void ShowRightGlow(Vector2 anchoredPosition, float boardScale)
+    public void ShowRightGlow(Vector2 anchoredPosition, float boardScale, Domino tile)
     {
-        if (rightGlow == null)
+        if (rightGlow == null || currentGame == null || currentGame.board.Count == 0)
             return;
+
+        // Get board connection value
+        int rightConnect = currentGame.board.Last.Value.right;
+
+        Debug.Log($"[RIGHT_GLOW] -------------------------");
+        Debug.Log($"[RIGHT_GLOW] Drag tile = [{tile.left}|{tile.right}]");
+        Debug.Log($"[RIGHT_GLOW] rightEndDirection = {rightEndDirection}");
+        Debug.Log($"[RIGHT_GLOW] rightConnect = {rightConnect}");
+        Debug.Log($"[RIGHT_GLOW] anchoredPosition = {anchoredPosition}");
+
+        RectTransform rightRT = rightEndTile.GetComponent<RectTransform>();
+
+
+        Direction previewDir = GetNextDirection(
+             rightEndDirection,
+             rightRT.anchoredPosition
+         );
+        // Compute preview tile (AFTER flip)
+        GetPreviewTile(
+       tile.left,
+       tile.right,
+       previewDir,
+       rightConnect,
+       out int previewLeft,
+       out int previewRight
+   );
+
+        Quaternion rotation = GetTileRotation(previewLeft, previewRight, previewDir);
+
+        Debug.Log($"[RIGHT_GLOW] preview tile = [{previewLeft}|{previewRight}]");
+        Debug.Log($"[RIGHT_GLOW] final rotation z = {rotation.eulerAngles.z}");
 
         rightGlow.anchoredPosition = anchoredPosition;
         rightGlow.localScale = Vector3.one * boardScale * glowScaleMultiplier;
+        rightGlow.localRotation = rotation;
         rightGlow.gameObject.SetActive(true);
     }
 
@@ -504,25 +564,7 @@ public class DominoTableView : MonoBehaviour
             }
         }
 
-        if (isDouble)
-            rt.localRotation = Quaternion.Euler(0, 0, 0);
-        else if (direction == Direction.Right)
-        {
-            // If left > right, sprite has high on top — rotate +90 to put high on left
-            // If left < right, sprite has low on top — rotate -90 to put low on right  
-            bool highOnLeft = (left > right);
-            rt.localRotation = Quaternion.Euler(0, 0, highOnLeft ? -90 : 90);
-        }
-        else if (direction == Direction.Left)
-        {
-            bool highOnLeft = (left > right);
-            rt.localRotation = Quaternion.Euler(0, 0, highOnLeft ? 90 : -90);
-        }
-        else if (direction == Direction.Down)
-        {
-            bool highOnTop = (left > right);
-            rt.localRotation = Quaternion.Euler(0, 0, highOnTop ? 180 : 0);
-        }
+        rt.localRotation = GetTileRotation(left, right, direction);
 
         // Simple call — no flip params needed
         DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
@@ -615,13 +657,31 @@ public class DominoTableView : MonoBehaviour
         if (leftEndTile != null)
         {
             RectTransform leftRT = leftEndTile.GetComponent<RectTransform>();
-            leftPos = leftRT.anchoredPosition + new Vector2(-tileHeight, 0);
+
+            Direction previewDir = GetNextDirection(
+                leftEndDirection,
+                leftRT.anchoredPosition
+            );
+
+            leftPos = leftRT.anchoredPosition + GetDirectionalOffset(previewDir);
+
+            Debug.Log($"[POS FIX LEFT] currentDir={leftEndDirection} → previewDir={previewDir}");
+            Debug.Log($"[POS FIX LEFT] basePos={leftRT.anchoredPosition} → glowPos={leftPos}");
         }
 
         if (rightEndTile != null)
         {
             RectTransform rightRT = rightEndTile.GetComponent<RectTransform>();
-            rightPos = rightRT.anchoredPosition + new Vector2(tileHeight, 0);
+
+            Direction previewDir = GetNextDirection(
+                rightEndDirection,
+                rightRT.anchoredPosition
+            );
+
+            rightPos = rightRT.anchoredPosition + GetDirectionalOffset(previewDir);
+
+            Debug.Log($"[POS FIX RIGHT] currentDir={rightEndDirection} → previewDir={previewDir}");
+            Debug.Log($"[POS FIX RIGHT] basePos={rightRT.anchoredPosition} → glowPos={rightPos}");
         }
 
         // Convert pointer to LOCAL space (CRITICAL)
@@ -649,13 +709,12 @@ public class DominoTableView : MonoBehaviour
         Debug.Log($"[DRAG] distLeft={distLeft}, distRight={distRight}");
 
         // Decide based on closest VALID side
-        // Decide based on closest VALID side
         if (matchLeft && matchRight)
         {
             // Show BOTH glows — let proximity decide on drop
             Debug.Log("[DRAG] SHOW BOTH (double match)");
-            ShowLeftGlow(leftPos, 1f);
-            ShowRightGlow(rightPos, 1f);
+            ShowLeftGlow(leftPos, 1f, tile);
+            ShowRightGlow(rightPos, 1f, tile);
             isLeftGlowActive = true;
             isRightGlowActive = true;
 
@@ -665,14 +724,14 @@ public class DominoTableView : MonoBehaviour
         else if (matchLeft)
         {
             Debug.Log("[DRAG] SHOW LEFT");
-            ShowLeftGlow(leftPos, 1f);
+            ShowLeftGlow(leftPos, 1f,tile);
             isLeftGlowActive = true;
             currentHoverDirection = Direction.Left;
         }
         else if (matchRight)
         {
             Debug.Log("[DRAG] SHOW RIGHT");
-            ShowRightGlow(rightPos, 1f);
+            ShowRightGlow(rightPos, 1f,tile);
             isRightGlowActive = true;
             currentHoverDirection = Direction.Right;
         }
@@ -755,7 +814,7 @@ public class DominoTableView : MonoBehaviour
         Direction result = distLeft < distRight ? Direction.Left : Direction.Right;
         Debug.Log($"[GLOW_DIR] Result = {result}");
         return result;
-    }
+    }   
 
     public void ClearGlow()
     {
@@ -830,5 +889,98 @@ public class DominoTableView : MonoBehaviour
             return rightEndTile.GetComponent<RectTransform>().position;
 
         return boardAnchor.position;
+    }
+
+    public Vector2 GetDirectionalOffset(Direction dir)
+    {
+        switch (dir)
+        {
+            case Direction.Right:
+                    return new Vector2(tileHeight, 0);
+            case Direction.Left:
+                return new Vector2(-tileHeight, 0);
+            case Direction.Down:
+                return new Vector2(0, -tileHeight);
+
+            default:
+                return Vector2.zero;
+        }
+    }
+
+    Quaternion GetTileRotation(int left, int right, Direction direction)
+    {
+        bool isDouble = left == right;
+        Quaternion result = Quaternion.identity;
+
+        if (isDouble)
+        {
+            result = Quaternion.Euler(0, 0, 0);
+            Debug.Log($"[ROTATION] Tile [{left}|{right}] is double -> {result.eulerAngles}");
+            return result;
+        }
+
+        if (direction == Direction.Right)
+        {
+            bool highOnLeft = (left > right);
+            result = Quaternion.Euler(0, 0, highOnLeft ? -90 : 90);
+        }
+        else if (direction == Direction.Left)
+        {
+            bool highOnLeft = (left > right);
+            result = Quaternion.Euler(0, 0, highOnLeft ? 90 : -90);
+        }
+        else if (direction == Direction.Down)
+        {
+            bool highOnTop = (left > right);
+            result = Quaternion.Euler(0, 0, highOnTop ? 180 : 0);
+        }
+
+        Debug.Log($"[ROTATION] Tile [{left}|{right}] direction={direction} -> z={result.eulerAngles.z}");
+        return result;
+    }
+
+    void GetPreviewTile(
+    int left,
+    int right,
+    Direction direction,
+    int connectValue,
+    out int finalLeft,
+    out int finalRight
+)
+    {
+        finalLeft = left;
+        finalRight = right;
+
+        if (connectValue != -1)
+        {
+            if (direction == Direction.Right && finalLeft != connectValue)
+            {
+                (finalLeft, finalRight) = (finalRight, finalLeft);
+            }
+            else if (direction == Direction.Left && finalRight != connectValue)
+            {
+                (finalLeft, finalRight) = (finalRight, finalLeft);
+            }
+        }
+    }
+
+    Direction GetNextDirection(Direction currentDir, Vector2 currentPos)
+    {
+        float boardHalfWidth = boardAnchor.rect.width / 2f;
+        float step = tileHeight;
+
+        if (currentDir == Direction.Right && currentPos.x + step > boardHalfWidth - step)
+        {
+            Debug.Log("[DIR FIX] Right → Down");
+            return Direction.Down;
+        }
+
+        if (currentDir == Direction.Left && currentPos.x - step < -boardHalfWidth + step)
+        {
+            Debug.Log("[DIR FIX] Left → Down");
+            return Direction.Down;
+        }
+
+        return currentDir;
     }
 }
