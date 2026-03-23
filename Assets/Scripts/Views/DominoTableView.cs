@@ -663,7 +663,10 @@ public class DominoTableView : MonoBehaviour
                 leftRT.anchoredPosition
             );
 
-            leftPos = leftRT.anchoredPosition + GetDirectionalOffset(previewDir);
+            Vector2 offset = GetDirectionalOffset(previewDir);
+            leftPos = leftRT.anchoredPosition - offset;
+
+
 
             Debug.Log($"[POS FIX LEFT] currentDir={leftEndDirection} → previewDir={previewDir}");
             Debug.Log($"[POS FIX LEFT] basePos={leftRT.anchoredPosition} → glowPos={leftPos}");
