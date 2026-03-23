@@ -9,10 +9,13 @@ public class Domino
     public int left;
     public int right;
 
-    public Domino(int l, int r)
+    public string ownerId;
+
+    public Domino(int l, int r, string owner = null)
     {
         left = l;
         right = r;
+        ownerId = owner;
     }
 
     public Domino Flipped()

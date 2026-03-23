@@ -66,6 +66,11 @@ public class DominoTableView : MonoBehaviour
 
     public Direction? currentHoverDirection = null;
 
+    [Header("Pooling")]
+    public DominoPool dominoPool;
+
+    private List<GameObject> activeTiles = new List<GameObject>();
+
     private void Awake()
     {
         RectTransform tileRect = dominoFacePrefab.GetComponent<RectTransform>();
@@ -327,15 +332,7 @@ public class DominoTableView : MonoBehaviour
 
         if (boardAnchor == null) return;
 
-        for (int i = boardAnchor.childCount - 1; i >= 0; i--)
-        {
-            Transform child = boardAnchor.GetChild(i);
-
-            if (child.GetComponent<DominoTileUI>() != null)
-            {
-                Destroy(child.gameObject);
-            }
-        }
+        ClearBoard();
 
         leftEndTile = null;
         rightEndTile = null;
@@ -537,9 +534,13 @@ public class DominoTableView : MonoBehaviour
         Direction direction,
         int connectValue = -1)
     {
-        GameObject tileObj = Instantiate(dominoFacePrefab, boardAnchor, false);
-        tileObj.tag = "BoardTile";
+        var tileObj = dominoPool.Get(boardAnchor);
+        activeTiles.Add(tileObj);
+
+        // SAFETY RESET
         RectTransform rt = tileObj.GetComponent<RectTransform>();
+
+        tileObj.tag = "BoardTile";
 
         rt.anchoredPosition = position;
         rt.localScale = Vector3.one * scale;
@@ -595,6 +596,14 @@ public class DominoTableView : MonoBehaviour
         {
             selectedSkin = defaultSkin
         };
+
+        //remove at the end.. get user domino skin
+       /* DominoPlayer owner = currentGame.players.Find(p => p.userId == domino.ownerId);
+
+        if (owner == null)
+        {
+            owner = new DominoPlayer { selectedSkin = defaultSkin };
+        }*/
 
         SpawnBoardTile(fakeOwner, left, right, pos, 1f, Direction.Right);
 
@@ -993,5 +1002,15 @@ public class DominoTableView : MonoBehaviour
         }
 
         return currentDir;
+    }
+
+    void ClearBoard()
+    {
+        foreach (var tile in activeTiles)
+        {
+            dominoPool.Return(tile);
+        }
+
+        activeTiles.Clear();
     }
 }
