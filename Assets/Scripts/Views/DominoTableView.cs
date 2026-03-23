@@ -383,6 +383,9 @@ public class DominoTableView : MonoBehaviour
         leftEndTile = centerObj;
         rightEndTile = centerObj;
 
+        leftEndDirection = Direction.Left;
+        rightEndDirection = Direction.Right;
+
         for (int step = 1; step <= center || center + step < board.Count; step++)
         {
             // RIGHT SIDE
@@ -546,24 +549,6 @@ public class DominoTableView : MonoBehaviour
         Debug.Log($"[RENDER] Position = {position}");
         Debug.Log($"[RENDER] ConnectValue = {connectValue}");
 
-        if (connectValue != -1)
-        {
-            if (direction == Direction.Right && left != connectValue)
-            {
-                (left, right) = (right, left);
-                Debug.Log($"[RENDER FIX] Flipped for RIGHT -> [{left}|{right}]");
-            }
-            else if (direction == Direction.Left && right != connectValue)
-            {
-                (left, right) = (right, left);
-                Debug.Log($"[RENDER FIX] Flipped for LEFT -> [{left}|{right}]");
-            }
-            else
-            {
-                Debug.Log($"[RENDER FIX] No flip needed -> [{left}|{right}]");
-            }
-        }
-
         rt.localRotation = GetTileRotation(left, right, direction);
 
         // Simple call — no flip params needed
@@ -664,8 +649,15 @@ public class DominoTableView : MonoBehaviour
             );
 
             Vector2 offset = GetDirectionalOffset(previewDir);
-            leftPos = leftRT.anchoredPosition - offset;
 
+            if (previewDir == Direction.Left)
+            {
+                leftPos = leftRT.anchoredPosition + offset; 
+            }
+            else
+            {
+                leftPos = leftRT.anchoredPosition - offset;
+            }
 
 
             Debug.Log($"[POS FIX LEFT] currentDir={leftEndDirection} → previewDir={previewDir}");
@@ -924,13 +916,13 @@ public class DominoTableView : MonoBehaviour
 
         if (direction == Direction.Right)
         {
-            bool highOnLeft = (left > right);
-            result = Quaternion.Euler(0, 0, highOnLeft ? -90 : 90);
+            bool highOnRight = (left > right);
+            result = Quaternion.Euler(0, 0, highOnRight ? -90 : 90);
         }
         else if (direction == Direction.Left)
         {
-            bool highOnLeft = (left > right);
-            result = Quaternion.Euler(0, 0, highOnLeft ? 90 : -90);
+            bool highOnLeft = (right > left);
+            return Quaternion.Euler(0, 0, highOnLeft ? 90 : -90);
         }
         else if (direction == Direction.Down)
         {
@@ -978,7 +970,7 @@ public class DominoTableView : MonoBehaviour
             return Direction.Down;
         }
 
-        if (currentDir == Direction.Left && currentPos.x - step < -boardHalfWidth + step)
+        if (currentDir == Direction.Left && currentPos.x <= -boardHalfWidth + step)
         {
             Debug.Log("[DIR FIX] Left → Down");
             return Direction.Down;
