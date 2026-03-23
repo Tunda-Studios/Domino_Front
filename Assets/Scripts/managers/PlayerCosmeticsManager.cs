@@ -6,20 +6,26 @@ public class PlayerCosmeticsManager : MonoBehaviour
 {
     public static PlayerCosmeticsManager Instance;
 
-    public DominoSpriteDatabase activeDominoSet;
+    private Dictionary<string, DominoSpriteDatabase> playerSkins =
+        new Dictionary<string, DominoSpriteDatabase>();
 
     private void Awake()
     {
         Instance = this;
     }
-    // Start is called before the first frame update
-    public void SetTileSkin(DominoSpriteDatabase newSet)
+
+    public void SetPlayerSkin(string playerId, DominoSpriteDatabase skin)
     {
-        activeDominoSet = newSet;
+        playerSkins[playerId] = skin;
     }
 
-    public DominoSpriteDatabase GetTileSkin()
+    public DominoSpriteDatabase GetPlayerSkin(string playerId)
     {
-        return activeDominoSet;
+        if (playerSkins.TryGetValue(playerId, out var skin))
+            return skin;
+
+        Debug.LogWarning($"No skin found for player {playerId}");
+        return null;
     }
 }
+

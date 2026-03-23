@@ -13,37 +13,47 @@ public class DominoTableTest : MonoBehaviour
         game.board = new LinkedList<Domino>();
 
         // Fake Hands
-        game.players.Add(new DominoPlayer
+        // Player 1
+        var p1 = new DominoPlayer
         {
             userId = "u1",
-            hand = new List<int[]> {
-            new []{6,6}, new []{6,5}, new []{1,3}
-        }
-        });
+            hand = new PlayerHand()
+        };
+        p1.hand.AddTile(new Domino(6, 6));
+        p1.hand.AddTile(new Domino(6, 5));
+        p1.hand.AddTile(new Domino(1, 3));
 
-        game.players.Add(new DominoPlayer
+        // Player 2
+        var p2 = new DominoPlayer
         {
             userId = "u2",
-            hand = new List<int[]> {
-            new []{4,4}, new []{3,0}
-        }
-        });
+            hand = new PlayerHand()
+        };
+        p2.hand.AddTile(new Domino(4, 4));
+        p2.hand.AddTile(new Domino(3, 0));
 
-        game.players.Add(new DominoPlayer
+        // Player 3
+        var p3 = new DominoPlayer
         {
             userId = "u3",
-            hand = new List<int[]> {
-            new []{2,2}, new []{5,1}, new []{6,1}
-        }
-        });
+            hand = new PlayerHand()
+        };
+        p3.hand.AddTile(new Domino(2, 2));
+        p3.hand.AddTile(new Domino(5, 1));
+        p3.hand.AddTile(new Domino(6, 1));
 
-        game.players.Add(new DominoPlayer
+        // Player 4
+        var p4 = new DominoPlayer
         {
             userId = "u4",
-            hand = new List<int[]> {
-            new []{3,3}
-        }
-        });
+            hand = new PlayerHand()
+        };
+        p4.hand.AddTile(new Domino(3, 3));
+
+        game.players.Add(p1);
+        game.players.Add(p2);
+        game.players.Add(p3);
+        game.players.Add(p4);
 
         table.currentGame = game;
         table.BuildTable();

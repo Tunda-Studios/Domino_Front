@@ -13,7 +13,8 @@ public class DominoPlayer
     public int score;
 
     public bool isActive;
-    public List<int[]> hand;
+
+    public PlayerHand hand;
 
     public DominoSpriteDatabase selectedSkin;
 }

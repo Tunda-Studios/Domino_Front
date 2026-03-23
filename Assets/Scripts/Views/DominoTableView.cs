@@ -13,7 +13,7 @@ public class DominoTableView : MonoBehaviour
     public RectTransform boardAnchor;
 
     [Header("Prefabs")]
-    public GameObject dominoFacePrefab;  
+    public GameObject dominoFacePrefab;
     public GameObject dominoBackPrefab;
 
     [Header("Default Skin")]
@@ -30,8 +30,8 @@ public class DominoTableView : MonoBehaviour
     float tileWidth;
     float tileHeight;
 
-    public string myUserId = "u1";       
-    public DominoGame currentGame;        
+    public string myUserId = "u1";
+    public DominoGame currentGame;
 
     [Header("Layout")]
     public float tileSpacing = 120f;
@@ -47,7 +47,7 @@ public class DominoTableView : MonoBehaviour
     int horizontalLength = 6;  // tiles before turning
     int horizontalCount = 0;
 
-    int verticalLength = 2;
+    int verticalLength = 1;
     int verticalCount = 0;
 
     [Header("Testing")]
@@ -236,7 +236,7 @@ public class DominoTableView : MonoBehaviour
         if (playerCount > 3)
             RenderSeat(leftHandAnchor, players[seatToPlayerIndex[3]], isLocal: false);
 
-       
+
 
         RenderBoard(currentGame.board);
 
@@ -291,8 +291,9 @@ public class DominoTableView : MonoBehaviour
             //setup
             if (isLocal)
             {
-                int left = hand[i][0];
-                int right = hand[i][1];
+                Domino domino = hand.tiles[i];
+                int left = domino.left;
+                int right = domino.right;
 
                 DominoSpriteDatabase skin = player.selectedSkin;
                 Sprite sprite = skin.GetTileSprite(left, right);
@@ -360,7 +361,7 @@ public class DominoTableView : MonoBehaviour
         Vector2 pos = Vector2.zero;
         Direction direction = Direction.Right;
         int rightVerticalCount = 0;
-        int rightVerticalLength = 2;
+        int rightVerticalLength = 1;
 
         // LEFT SIDE STATE
         Vector2 leftPos = Vector2.zero;
@@ -409,9 +410,9 @@ public class DominoTableView : MonoBehaviour
                         if (pos.x - horizontalStep < leftLimit)
                         {
                             direction = Direction.Down;
-                            rightVerticalCount = 0;
+                            leftVerticalCount = 0;
                             pos.y -= verticalStep;
-                            rightVerticalCount++;
+                            leftVerticalCount++;
                             break;
                         }
                         pos.x -= horizontalStep;
@@ -449,7 +450,7 @@ public class DominoTableView : MonoBehaviour
                     direction = Direction.Down;
                     rightVerticalCount = 0;
                 }
-                else if (direction == Direction.Down && rightVerticalCount >= rightVerticalLength)
+                else if (direction == Direction.Down && rightVerticalCount >= verticalLength)
                 {
                     rightVerticalCount = 0;
                     direction = (pos.x > 0) ? Direction.Left : Direction.Right;
@@ -467,7 +468,7 @@ public class DominoTableView : MonoBehaviour
                     case Direction.Right:
                         leftPos.x += horizontalStep;
                         break;
-                    case Direction.Down:
+                    case Direction.Up:
                         leftPos.y += verticalStep;
                         leftVerticalCount++;
                         break;
@@ -491,15 +492,19 @@ public class DominoTableView : MonoBehaviour
 
                 if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
                 {
-                    leftDirection = Direction.Down;
+                    if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
+                    {
+                        leftDirection = Direction.Up;
+                        leftVerticalCount = 0;
+                    }
                     leftVerticalCount = 0;
                 }
                 else if (leftDirection == Direction.Right && leftPos.x >= rightLimit)
                 {
-                    leftDirection = Direction.Down;
+                    leftDirection = Direction.Up;
                     leftVerticalCount = 0;
                 }
-                else if (leftDirection == Direction.Down && leftVerticalCount >= 2)
+                else if (leftDirection == Direction.Up && leftVerticalCount >= verticalLength)
                 {
                     leftVerticalCount = 0;
                     leftDirection = (leftPos.x > 0) ? Direction.Left : Direction.Right;
@@ -591,7 +596,7 @@ public class DominoTableView : MonoBehaviour
             selectedSkin = defaultSkin
         };
 
-        SpawnBoardTile(fakeOwner, left, right, pos,1f, Direction.Right);
+        SpawnBoardTile(fakeOwner, left, right, pos, 1f, Direction.Right);
 
         Debug.Log($"Spawned test board tile [{left}|{right}] at {pos}");
     }
@@ -606,9 +611,9 @@ public class DominoTableView : MonoBehaviour
 
         currentGame.board.Clear();
 
-        currentGame.board.AddLast(new Domino { left = 5, right = 6 });
-        currentGame.board.AddLast(new Domino { left = 6, right = 3 });
-        currentGame.board.AddLast(new Domino { left = 3, right = 5 });
+        currentGame.board.AddLast(new Domino(5,6));
+        currentGame.board.AddLast(new Domino(6,3));
+        currentGame.board.AddLast(new Domino(3,5));
 
         Debug.Log("Initialized test board");
 
@@ -649,16 +654,7 @@ public class DominoTableView : MonoBehaviour
             );
 
             Vector2 offset = GetDirectionalOffset(previewDir);
-
-            if (previewDir == Direction.Left)
-            {
-                leftPos = leftRT.anchoredPosition + offset; 
-            }
-            else
-            {
-                leftPos = leftRT.anchoredPosition - offset;
-            }
-
+            leftPos = leftRT.anchoredPosition + offset;
 
             Debug.Log($"[POS FIX LEFT] currentDir={leftEndDirection} → previewDir={previewDir}");
             Debug.Log($"[POS FIX LEFT] basePos={leftRT.anchoredPosition} → glowPos={leftPos}");
@@ -719,14 +715,14 @@ public class DominoTableView : MonoBehaviour
         else if (matchLeft)
         {
             Debug.Log("[DRAG] SHOW LEFT");
-            ShowLeftGlow(leftPos, 1f,tile);
+            ShowLeftGlow(leftPos, 1f, tile);
             isLeftGlowActive = true;
             currentHoverDirection = Direction.Left;
         }
         else if (matchRight)
         {
             Debug.Log("[DRAG] SHOW RIGHT");
-            ShowRightGlow(rightPos, 1f,tile);
+            ShowRightGlow(rightPos, 1f, tile);
             isRightGlowActive = true;
             currentHoverDirection = Direction.Right;
         }
@@ -809,12 +805,12 @@ public class DominoTableView : MonoBehaviour
         Direction result = distLeft < distRight ? Direction.Left : Direction.Right;
         Debug.Log($"[GLOW_DIR] Result = {result}");
         return result;
-    }   
+    }
 
     public void ClearGlow()
     {
-      //  leftGlow.SetActive(false);
-       // rightGlow.SetActive(false);
+        //  leftGlow.SetActive(false);
+        // rightGlow.SetActive(false);
     }
 
     void PrintBoard()
@@ -891,11 +887,13 @@ public class DominoTableView : MonoBehaviour
         switch (dir)
         {
             case Direction.Right:
-                    return new Vector2(tileHeight, 0);
+                return new Vector2(tileHeight, 0);
             case Direction.Left:
                 return new Vector2(-tileHeight, 0);
             case Direction.Down:
                 return new Vector2(0, -tileHeight);
+            case Direction.Up:
+                return new Vector2(0, tileHeight);
 
             default:
                 return Vector2.zero;
@@ -929,6 +927,11 @@ public class DominoTableView : MonoBehaviour
             bool highOnTop = (left > right);
             result = Quaternion.Euler(0, 0, highOnTop ? 180 : 0);
         }
+        else if (direction == Direction.Up)
+        {
+            bool highOnTop = (right > left);
+            return Quaternion.Euler(0, 0, highOnTop ? 0 : 180);
+        }
 
         Debug.Log($"[ROTATION] Tile [{left}|{right}] direction={direction} -> z={result.eulerAngles.z}");
         return result;
@@ -946,17 +949,30 @@ public class DominoTableView : MonoBehaviour
         finalLeft = left;
         finalRight = right;
 
-        if (connectValue != -1)
+        if (connectValue == -1)
+            return;
+
+        if (direction == Direction.Right)
         {
-            if (direction == Direction.Right && finalLeft != connectValue)
-            {
+            if (finalLeft != connectValue)
                 (finalLeft, finalRight) = (finalRight, finalLeft);
-            }
-            else if (direction == Direction.Left && finalRight != connectValue)
-            {
-                (finalLeft, finalRight) = (finalRight, finalLeft);
-            }
         }
+        else if (direction == Direction.Left)
+        {
+            if (finalRight != connectValue)
+                (finalLeft, finalRight) = (finalRight, finalLeft);
+        }
+        else if (direction == Direction.Up)
+        {
+            if (finalLeft != connectValue)
+                (finalLeft, finalRight) = (finalRight, finalLeft);
+        }
+        else if (direction == Direction.Down)
+        {
+            if (finalRight != connectValue)
+                (finalLeft, finalRight) = (finalRight, finalLeft);
+        }
+
     }
 
     Direction GetNextDirection(Direction currentDir, Vector2 currentPos)
@@ -973,7 +989,7 @@ public class DominoTableView : MonoBehaviour
         if (currentDir == Direction.Left && currentPos.x <= -boardHalfWidth + step)
         {
             Debug.Log("[DIR FIX] Left → Down");
-            return Direction.Down;
+            return Direction.Up;
         }
 
         return currentDir;

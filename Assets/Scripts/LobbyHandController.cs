@@ -35,7 +35,7 @@ public class LobbyHandController : MonoBehaviour
         if (_me.selectedSkin == null)
             _me.selectedSkin = defaultSkin;
 
-        RenderHand(_me.hand, _me.selectedSkin);
+      //  RenderHand(_me.hand.tiles, _me.selectedSkin);
     }
 
     private void RenderHand(List<int[]> hand, DominoSpriteDatabase skin)

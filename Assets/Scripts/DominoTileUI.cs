@@ -96,22 +96,13 @@ public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEnd
 
         if (table != null)
         {
-            Domino tile = new Domino
-            {
-                left = _left,
-                right = _right
-            };
-
+            Domino tile = new Domino(_left, _right);
             table.HandleTileDragging(eventData.position, tile);
         }
     }
     public void OnEndDrag(PointerEventData eventData)
     {
-        Domino tile = new Domino
-        {
-            left = _left,
-            right = _right
-        };
+        Domino tile = new Domino(_left, _right);
 
         DominoGameController.Instance.TryPlayTile(tile, eventData.position, this);
 

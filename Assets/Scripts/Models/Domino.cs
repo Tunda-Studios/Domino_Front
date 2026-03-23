@@ -4,7 +4,7 @@ using UnityEngine;
 using System;
 
 [Serializable]
-public struct Domino 
+public class Domino 
 {
     public int left;
     public int right;

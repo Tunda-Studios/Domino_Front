@@ -50,15 +50,15 @@ public class DominoGameController : MonoBehaviour
 
     private void Start()
     {
-            if (tableView.enableLocalPlayTesting)
-            {
-                CreateOfflineGame();
+        if (tableView.enableLocalPlayTesting)
+        {
+            CreateOfflineGame();
 
-                tableView.currentGame = currentGame;
-                tableView.myUserId = "u1";
+            tableView.currentGame = currentGame;
+            tableView.myUserId = "u1";
 
-                tableView.BuildTable();
-            }
+            tableView.BuildTable();
+        }
         /*
         webSocketClient.OnGameReceived += HandleGameFromWS;
         if (apiClient == null)
@@ -258,7 +258,7 @@ public class DominoGameController : MonoBehaviour
     */
     private async Task LoadAndLogGames()
     {
-        
+
         string res = await apiClient.Get("/api/games");
         Debug.Log(res);
         if (string.IsNullOrEmpty(res))
@@ -281,7 +281,7 @@ public class DominoGameController : MonoBehaviour
             Debug.LogWarning("[Lobby] No games found or parse failed.");
             return;
         }
-        
+
 
         Debug.Log($"[Lobby] Loaded {list.games.Count} games:");
         Debug.Log("reach");
@@ -301,7 +301,7 @@ public class DominoGameController : MonoBehaviour
         // 1) Assign the game to the table view
         tableView.currentGame = game;
         tableView.myUserId = "u1";
-        
+
         tableView.BuildTable();
     }
 
@@ -377,7 +377,7 @@ public class DominoGameController : MonoBehaviour
             return;
         }
 
-        var tile = me.hand[0];
+        var tile = me.hand.tiles[0];
 
         var req = new MoveRequest
         {
@@ -395,7 +395,7 @@ public class DominoGameController : MonoBehaviour
 
         currentGame = JsonConvert.DeserializeObject<DominoGame>(res);
 
-        Debug.Log($"[Unity] Played [{tile[0]},{tile[1]}].");
+        Debug.Log($"[Unity] Played [{tile.left},{tile.right}].");
     }
 
     public async Task PassTurn()
@@ -468,7 +468,7 @@ public class DominoGameController : MonoBehaviour
         // EMPTY BOARD CASE
         if (currentGame.board.Count == 0)
         {
-            currentGame.board.AddFirst(new Domino { left = tile.left, right = tile.right });
+            currentGame.board.AddFirst(new Domino (tile.left, tile.right ));
             tableView.boardCenterIndex = 0;
             tableView.BuildTable();
             return;
@@ -526,14 +526,14 @@ public class DominoGameController : MonoBehaviour
 
         for (int i = 0; i < player.hand.Count; i++)
         {
-            var h = player.hand[i];
+            var h = player.hand.tiles[i];
 
             if (
-                (h[0] == tile.left && h[1] == tile.right) ||
-                (h[0] == tile.right && h[1] == tile.left)
+                (h.left == tile.left && h.right == tile.right) ||
+                    (h.left == tile.right && h.right == tile.left)
             )
             {
-                player.hand.RemoveAt(i);
+                player.hand.tiles.RemoveAt(i);
                 removed = true;
                 break;
             }
@@ -549,12 +549,12 @@ public class DominoGameController : MonoBehaviour
         // PLACE TILE
         if (dir == Direction.Left)
         {
-            currentGame.board.AddFirst(new Domino { left = tile.left, right = tile.right });
+            currentGame.board.AddFirst(new Domino(tile.left, tile.right));
             tableView.boardCenterIndex++;
         }
         else
         {
-            currentGame.board.AddLast(new Domino { left = tile.left, right = tile.right });
+            currentGame.board.AddLast(new Domino(tile.left, tile.right));
         }
 
         // DEBUG BOARD STATE
@@ -636,12 +636,12 @@ public class DominoGameController : MonoBehaviour
 
     void Update()
     {
-    
+
     }
 
     private async void OnDestroy()
     {
-       
+
     }
 
     // 1. REPLACE CreateOfflineGame:
@@ -653,22 +653,20 @@ public class DominoGameController : MonoBehaviour
         DominoPlayer localPlayer = new DominoPlayer();
         localPlayer.userId = "u1";
         localPlayer.displayName = "Local Player";
-        localPlayer.hand = new List<int[]>
-    {
-        new int[]{0,1},
-        new int[]{0,2},
-        new int[]{0,3},
-        new int[]{0,4},
-        new int[]{0,5},
-        new int[]{0,6},
-         new int[]{1,5},
-         new int[]{6,3},
-    };
+        localPlayer.hand = new PlayerHand();
+        localPlayer.hand.AddTile(new Domino(0, 1));
+        localPlayer.hand.AddTile(new Domino(0, 2));
+        localPlayer.hand.AddTile(new Domino(0, 3));
+        localPlayer.hand.AddTile(new Domino(0, 4));
+        localPlayer.hand.AddTile(new Domino(0, 5));
+        localPlayer.hand.AddTile(new Domino(0, 6));
+        localPlayer.hand.AddTile(new Domino(1, 5));
+        localPlayer.hand.AddTile(new Domino(6, 3));
 
         currentGame.players.Add(localPlayer);
         currentGame.currentTurnIndex = 0;
         currentGame.board = new LinkedList<Domino>();
-        currentGame.board.AddLast(new Domino { left = 6, right = 6 });
+        currentGame.board.AddLast(new Domino(6, 6));
 
         tableView.boardCenterIndex = 0; // first tile is always center
 
