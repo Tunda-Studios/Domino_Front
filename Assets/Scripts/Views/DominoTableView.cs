@@ -549,7 +549,6 @@ public class DominoTableView : MonoBehaviour
         int originalLeft = left;
         int originalRight = right;
 
-        Debug.Log($"[RENDER] -------------------------");
         Debug.Log($"[RENDER] Input tile = [{originalLeft}|{originalRight}]");
         Debug.Log($"[RENDER] Direction = {direction}");
         Debug.Log($"[RENDER] Position = {position}");
@@ -829,51 +828,6 @@ public class DominoTableView : MonoBehaviour
             s += $"[{t[0]}|{t[1]}] ";
         Debug.Log(s);
     }
-
-
-    /*
-    public void TestPlaceLeft()
-    {
-        int[] tile = new int[] { 5, 2 };
-
-        int leftValue = testBoard[0][0];
-
-        if (tile[0] != leftValue && tile[1] != leftValue)
-            return;
-
-        // Ensure RIGHT side matches board
-        if (tile[0] == leftValue)
-            tile = new int[] { tile[1], tile[0] };
-
-        testBoard.Insert(0, tile);
-
-        PrintBoard();
-        RenderBoard(testBoard);
-    }
-
-    public void TestPlaceRight()
-    {
-        int[] tile = new int[] { 5, 2 };
-
-        int rightValue = testBoard[testBoard.Count - 1][1];
-
-        if (tile[0] != rightValue && tile[1] != rightValue)
-        {
-            //Debug.Log(" Cannot play [5|2] on RIGHT");
-            return;
-        }
-
-        // Flip if needed
-        if (tile[0] != rightValue)
-            tile = new int[] { tile[1], tile[0] };
-
-        testBoard.Add(tile);
-
-        //Debug.Log(" Played [5|2] on RIGHT");
-        PrintBoard();
-        RenderBoard(testBoard);
-    }
-    */
 
     public Vector3 GetLeftEndWorldPosition()
     {
