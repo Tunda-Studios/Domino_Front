@@ -408,18 +408,20 @@ public class DominoTableView : MonoBehaviour
         for (int step = 1; step <= center || center + step < board.Count; step++)
         {
 
-            // RIGHT SIDE (FIXED)
+            // RIGHT SIDE
             if (center + step < board.Count)
             {
-                var direction = rightState.currentDirection;
+                Direction directionForThisTile = rightState.currentDirection;
 
-                Debug.Log($"[PATH] Dir={direction} | step={rightState.stepsSinceSwitch}");
+                Debug.Log($"[PATH] Dir={directionForThisTile} | step={rightState.stepsSinceSwitch}");
 
-                switch (direction)
+                switch (rightState.currentDirection)
                 {
                     case Direction.Right:
                         if (pos.x + horizontalStep > rightLimit)
                         {
+                            directionForThisTile = Direction.Down;
+
                             rightState.currentDirection = Direction.Down;
                             rightState.justSwitchedDirection = true;
                             rightState.stepsSinceSwitch = 0;
@@ -438,6 +440,8 @@ public class DominoTableView : MonoBehaviour
                     case Direction.Left:
                         if (pos.x - horizontalStep < leftLimit)
                         {
+                            directionForThisTile = Direction.Down;
+
                             rightState.currentDirection = Direction.Down;
                             rightState.justSwitchedDirection = true;
                             rightState.stepsSinceSwitch = 0;
@@ -500,7 +504,7 @@ public class DominoTableView : MonoBehaviour
                     list[center + step].right,
                     pos,
                     scale,
-                    rightState.currentDirection,
+                    directionForThisTile,
                     rightConnectValue
                 );
 
