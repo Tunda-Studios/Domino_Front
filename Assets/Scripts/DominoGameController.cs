@@ -662,6 +662,13 @@ public class DominoGameController : MonoBehaviour
         localPlayer.hand.AddTile(new Domino(0, 6));
         localPlayer.hand.AddTile(new Domino(1, 5));
         localPlayer.hand.AddTile(new Domino(3, 6));
+        localPlayer.hand.AddTile(new Domino(4, 6));
+        localPlayer.hand.AddTile(new Domino(2, 3));
+        localPlayer.hand.AddTile(new Domino(3, 5));
+        localPlayer.hand.AddTile(new Domino(2, 3));
+        localPlayer.hand.AddTile(new Domino(2, 3));
+        localPlayer.hand.AddTile(new Domino(2, 3));
+        localPlayer.hand.AddTile(new Domino(2, 3));
 
         currentGame.players.Add(localPlayer);
         currentGame.currentTurnIndex = 0;

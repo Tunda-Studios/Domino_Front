@@ -32,17 +32,25 @@ public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEnd
 
         if (skin != null)
         {
-            int fetchLeft = Mathf.Min(left, right);
-            int fetchRight = Mathf.Max(left, right);
+            // DO NOT MODIFY VALUES — preserve orientation
+            Sprite sprite = skin.GetTileSprite(left, right);
 
-            Debug.Log($"[SETUP] Fetching sprite for [{fetchLeft}|{fetchRight}]");
+            // fallback only if needed
+            if (sprite == null)
+            {
+                Debug.LogWarning($"[SETUP] Exact sprite not found for [{left}|{right}], trying flipped");
 
-            Sprite sprite = skin.GetTileSprite(fetchLeft, fetchRight);
+                sprite = skin.GetTileSprite(right, left);
+            }
 
             if (sprite == null)
-                Debug.LogError($"[SETUP] Sprite is NULL for [{fetchLeft}|{fetchRight}]!");
+            {
+                Debug.LogError($"[SETUP] Sprite still NULL for [{left}|{right}]!");
+            }
             else
+            {
                 Debug.Log($"[SETUP] Sprite found: {sprite.name}");
+            }
 
             tileImage.sprite = sprite;
             tileImage.transform.localScale = Vector3.one;
@@ -57,6 +65,8 @@ public class DominoTileUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEnd
 
         if (debugLabel != null)
             debugLabel.text = $"{left}|{right}";
+
+        Debug.Log($"[SETUP DEBUG] Requested sprite for [{left}|{right}]");
     }
 
     private void Awake()

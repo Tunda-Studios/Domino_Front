@@ -369,11 +369,21 @@ public class DominoTableView : MonoBehaviour
         };
 
         int rightVerticalLength = 1;
+        Vector2 leftPos = Vector2.zero;
 
         // LEFT SIDE 
-        Vector2 leftPos = Vector2.zero;
-        Direction leftDirection = Direction.Left;
-        int leftVerticalCount = 0;
+        PathState leftState = new PathState
+        {
+            currentDirection = Direction.Left,
+            lastHorizontalDirection = Direction.Left,
+            horizontalStepsTaken = 0,
+            verticalStepsTaken = 0,
+            previousDirection = Direction.Left,
+            justSwitchedDirection = false,
+            stepsSinceSwitch = 0
+        };
+
+        int leftVerticalLength = 1;
 
         // CENTER TILE
         int centerConnectValue = (center > 0) ? list[center - 1].right : -1;
@@ -470,7 +480,7 @@ public class DominoTableView : MonoBehaviour
                     Debug.Log($"[PATH] DOWN → {rightState.currentDirection}");
                 }
 
-                // 🔥 FIX: SECOND STEP STABILIZATION
+                // SECOND STEP STABILIZATION
                 if (rightState.justSwitchedDirection)
                 {
                     rightState.stepsSinceSwitch++;
@@ -503,18 +513,89 @@ public class DominoTableView : MonoBehaviour
             // =========================
             if (center - step >= 0)
             {
-                switch (leftDirection)
+                Direction directionForThisTile = leftState.currentDirection;
+
+                Debug.Log($"[LEFT PATH] Dir={leftState.currentDirection} | step={leftState.stepsSinceSwitch}");
+
+                switch (leftState.currentDirection)
                 {
                     case Direction.Left:
+                        if (leftPos.x - horizontalStep < leftLimit)
+                        {
+                            directionForThisTile = Direction.Up;
+
+                            leftState.currentDirection = Direction.Up;
+                            leftState.justSwitchedDirection = true;
+                            leftState.stepsSinceSwitch = 0;
+                            leftState.verticalStepsTaken = 0;
+
+                            Debug.Log("[LEFT PATH] LEFT → UP");
+
+                            leftPos.y += verticalStep;
+                            leftState.verticalStepsTaken++;
+                            break;
+                        }
+
                         leftPos.x -= horizontalStep;
                         break;
+
                     case Direction.Right:
+                        if (leftPos.x + horizontalStep > rightLimit)
+                        {
+                            directionForThisTile = Direction.Up;
+
+                            leftState.currentDirection = Direction.Up;
+                            leftState.justSwitchedDirection = true;
+                            leftState.stepsSinceSwitch = 0;
+                            leftState.verticalStepsTaken = 0;
+
+                            Debug.Log("[LEFT PATH] RIGHT → UP");
+
+                            leftPos.y += verticalStep;
+                            leftState.verticalStepsTaken++;
+                            break;
+                        }
+
                         leftPos.x += horizontalStep;
                         break;
+
                     case Direction.Up:
                         leftPos.y += verticalStep;
-                        leftVerticalCount++;
+                        leftState.verticalStepsTaken++;
                         break;
+                }
+
+                // TURN AFTER UP
+                if (leftState.currentDirection == Direction.Up &&
+                    leftState.verticalStepsTaken >= leftVerticalLength)
+                {
+                    if (leftState.lastHorizontalDirection == Direction.Left)
+                    {
+                        leftState.currentDirection = Direction.Right;
+                        leftState.lastHorizontalDirection = Direction.Right;
+                    }
+                    else
+                    {
+                        leftState.currentDirection = Direction.Left;
+                        leftState.lastHorizontalDirection = Direction.Left;
+                    }
+
+                    leftState.justSwitchedDirection = true;
+                    leftState.stepsSinceSwitch = 0;
+
+                    Debug.Log($"[LEFT PATH] UP → {leftState.currentDirection}");
+                }
+
+                // STABILIZATION
+                if (leftState.justSwitchedDirection)
+                {
+                    leftState.stepsSinceSwitch++;
+
+                    if (leftState.stepsSinceSwitch == 2)
+                    {
+                        leftState.justSwitchedDirection = false;
+                        Debug.Log("[LEFT PATH] Completed 2-step stabilization");
+                    }
                 }
 
                 int leftConnectValue = list[center - step + 1].left;
@@ -525,28 +606,12 @@ public class DominoTableView : MonoBehaviour
                     list[center - step].right,
                     leftPos,
                     scale,
-                    leftDirection,
+                    directionForThisTile, // 
                     leftConnectValue
                 );
 
                 leftEndTile = leftObj;
-                leftEndDirection = leftDirection;
-
-                if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
-                {
-                    leftDirection = Direction.Up;
-                    leftVerticalCount = 0;
-                }
-                else if (leftDirection == Direction.Right && leftPos.x >= rightLimit)
-                {
-                    leftDirection = Direction.Up;
-                    leftVerticalCount = 0;
-                }
-                else if (leftDirection == Direction.Up && leftVerticalCount >= verticalLength)
-                {
-                    leftVerticalCount = 0;
-                    leftDirection = (leftPos.x > 0) ? Direction.Left : Direction.Right;
-                }
+                leftEndDirection = directionForThisTile;
             }
         }
     }
@@ -655,7 +720,7 @@ public class DominoTableView : MonoBehaviour
         Debug.Log($"[RENDER] visualDirection = {visualDirection}");
 
         // STEP 3: Apply rotation using visual direction
-        rt.localRotation = GetTileRotation(left, right, direction, wasFlippedForConnection);
+        rt.localRotation = GetTileRotation(left, right, visualDirection, wasFlippedForConnection);
 
         Debug.Log($"[RENDER] Final rotation z = {rt.localRotation.eulerAngles.z}");
 
