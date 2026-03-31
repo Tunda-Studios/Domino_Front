@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerHand : MonoBehaviour
+public class PlayerHand
 {
     public List<Domino> tiles = new List<Domino>();
     // Start is called before the first frame update

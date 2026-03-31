@@ -132,7 +132,7 @@ public class DominoTableView : MonoBehaviour
         out int previewRight
         );
 
-        Quaternion rotation = GetTileRotation(previewLeft, previewRight, previewDir);
+        Quaternion rotation = GetTileRotation(previewLeft, previewRight, previewDir,false);
 
         Debug.Log($"[LEFT_GLOW] preview tile = [{previewLeft}|{previewRight}]");
         Debug.Log($"[LEFT_GLOW] final rotation z = {rotation.eulerAngles.z}");
@@ -174,7 +174,7 @@ public class DominoTableView : MonoBehaviour
        out int previewRight
    );
 
-        Quaternion rotation = GetTileRotation(previewLeft, previewRight, previewDir);
+        Quaternion rotation = GetTileRotation(previewLeft, previewRight, previewDir,false);
 
         Debug.Log($"[RIGHT_GLOW] preview tile = [{previewLeft}|{previewRight}]");
         Debug.Log($"[RIGHT_GLOW] final rotation z = {rotation.eulerAngles.z}");
@@ -354,18 +354,28 @@ public class DominoTableView : MonoBehaviour
 
         DominoPlayer fakeOwner = new DominoPlayer { selectedSkin = defaultSkin };
 
-        // RIGHT SIDE STATE
+        // RIGHT SIDE STATE 
         Vector2 pos = Vector2.zero;
-        Direction direction = Direction.Right;
-        int rightVerticalCount = 0;
+
+        PathState rightState = new PathState
+        {
+            currentDirection = Direction.Right,
+            lastHorizontalDirection = Direction.Right,
+            horizontalStepsTaken = 0,
+            verticalStepsTaken = 0,
+            previousDirection = Direction.Right,
+            justSwitchedDirection = false,
+            stepsSinceSwitch = 0
+        };
+
         int rightVerticalLength = 1;
 
-        // LEFT SIDE STATE
+        // LEFT SIDE 
         Vector2 leftPos = Vector2.zero;
         Direction leftDirection = Direction.Left;
         int leftVerticalCount = 0;
 
-        // Center tile: connect to left neighbor if one exists
+        // CENTER TILE
         int centerConnectValue = (center > 0) ? list[center - 1].right : -1;
 
         GameObject centerObj = SpawnBoardTile(
@@ -384,44 +394,94 @@ public class DominoTableView : MonoBehaviour
         leftEndDirection = Direction.Left;
         rightEndDirection = Direction.Right;
 
+        // MAIN LOOP
         for (int step = 1; step <= center || center + step < board.Count; step++)
         {
-            // RIGHT SIDE
+
+            // RIGHT SIDE (FIXED)
             if (center + step < board.Count)
             {
+                var direction = rightState.currentDirection;
+
+                Debug.Log($"[PATH] Dir={direction} | step={rightState.stepsSinceSwitch}");
+
                 switch (direction)
                 {
                     case Direction.Right:
                         if (pos.x + horizontalStep > rightLimit)
                         {
-                            direction = Direction.Down;
-                            rightVerticalCount = 0;
+                            rightState.currentDirection = Direction.Down;
+                            rightState.justSwitchedDirection = true;
+                            rightState.stepsSinceSwitch = 0;
+                            rightState.verticalStepsTaken = 0;
+
+                            Debug.Log("[PATH] RIGHT → DOWN");
+
                             pos.y -= verticalStep;
-                            rightVerticalCount++;
+                            rightState.verticalStepsTaken++;
                             break;
                         }
+
                         pos.x += horizontalStep;
                         break;
 
                     case Direction.Left:
                         if (pos.x - horizontalStep < leftLimit)
                         {
-                            direction = Direction.Down;
-                            leftVerticalCount = 0;
+                            rightState.currentDirection = Direction.Down;
+                            rightState.justSwitchedDirection = true;
+                            rightState.stepsSinceSwitch = 0;
+                            rightState.verticalStepsTaken = 0;
+
+                            Debug.Log("[PATH] LEFT → DOWN");
+
                             pos.y -= verticalStep;
-                            leftVerticalCount++;
+                            rightState.verticalStepsTaken++;
                             break;
                         }
+
                         pos.x -= horizontalStep;
                         break;
 
                     case Direction.Down:
                         pos.y -= verticalStep;
-                        rightVerticalCount++;
+                        rightState.verticalStepsTaken++;
                         break;
                 }
 
-                // connectValue = right side of the previous tile in the snapshot
+                // TURN AFTER DOWN
+                if (rightState.currentDirection == Direction.Down &&
+                    rightState.verticalStepsTaken >= rightVerticalLength)
+                {
+                    if (rightState.lastHorizontalDirection == Direction.Right)
+                    {
+                        rightState.currentDirection = Direction.Left;
+                        rightState.lastHorizontalDirection = Direction.Left;
+                    }
+                    else
+                    {
+                        rightState.currentDirection = Direction.Right;
+                        rightState.lastHorizontalDirection = Direction.Right;
+                    }
+
+                    rightState.justSwitchedDirection = true;
+                    rightState.stepsSinceSwitch = 0;
+
+                    Debug.Log($"[PATH] DOWN → {rightState.currentDirection}");
+                }
+
+                // 🔥 FIX: SECOND STEP STABILIZATION
+                if (rightState.justSwitchedDirection)
+                {
+                    rightState.stepsSinceSwitch++;
+
+                    if (rightState.stepsSinceSwitch == 2)
+                    {
+                        rightState.justSwitchedDirection = false;
+                        Debug.Log("[PATH] Completed 2-step stabilization");
+                    }
+                }
+
                 int rightConnectValue = list[center + step - 1].right;
 
                 GameObject rightObj = SpawnBoardTile(
@@ -430,31 +490,17 @@ public class DominoTableView : MonoBehaviour
                     list[center + step].right,
                     pos,
                     scale,
-                    direction,
+                    rightState.currentDirection,
                     rightConnectValue
                 );
 
                 rightEndTile = rightObj;
-                rightEndDirection = direction;
-
-                if (direction == Direction.Right && pos.x >= rightLimit)
-                {
-                    direction = Direction.Down;
-                    rightVerticalCount = 0;
-                }
-                else if (direction == Direction.Left && pos.x <= leftLimit)
-                {
-                    direction = Direction.Down;
-                    rightVerticalCount = 0;
-                }
-                else if (direction == Direction.Down && rightVerticalCount >= verticalLength)
-                {
-                    rightVerticalCount = 0;
-                    direction = (pos.x > 0) ? Direction.Left : Direction.Right;
-                }
+                rightEndDirection = rightState.currentDirection;
             }
 
-            // LEFT SIDE
+            // =========================
+            // LEFT SIDE (UNCHANGED)
+            // =========================
             if (center - step >= 0)
             {
                 switch (leftDirection)
@@ -471,7 +517,6 @@ public class DominoTableView : MonoBehaviour
                         break;
                 }
 
-                // connectValue = left side of the tile to its right in the snapshot
                 int leftConnectValue = list[center - step + 1].left;
 
                 GameObject leftObj = SpawnBoardTile(
@@ -489,11 +534,7 @@ public class DominoTableView : MonoBehaviour
 
                 if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
                 {
-                    if (leftDirection == Direction.Left && leftPos.x <= leftLimit)
-                    {
-                        leftDirection = Direction.Up;
-                        leftVerticalCount = 0;
-                    }
+                    leftDirection = Direction.Up;
                     leftVerticalCount = 0;
                 }
                 else if (leftDirection == Direction.Right && leftPos.x >= rightLimit)
@@ -526,39 +567,102 @@ public class DominoTableView : MonoBehaviour
     }
 
     public GameObject SpawnBoardTile(
-        DominoPlayer owner,
-        int left,
-        int right,
-        Vector2 position,
-        float scale,
-        Direction direction,
-        int connectValue = -1)
+     DominoPlayer owner,
+     int left,
+     int right,
+     Vector2 position,
+     float scale,
+     Direction direction,
+     int connectValue = -1)
     {
         var tileObj = dominoPool.Get(boardAnchor);
         activeTiles.Add(tileObj);
 
-        // SAFETY RESET
         RectTransform rt = tileObj.GetComponent<RectTransform>();
-
         tileObj.tag = "BoardTile";
 
         rt.anchoredPosition = position;
         rt.localScale = Vector3.one * scale;
 
-        bool isDouble = left == right;
         int originalLeft = left;
         int originalRight = right;
 
+        Debug.Log($"[RENDER] =====================================");
         Debug.Log($"[RENDER] Input tile = [{originalLeft}|{originalRight}]");
         Debug.Log($"[RENDER] Direction = {direction}");
         Debug.Log($"[RENDER] Position = {position}");
         Debug.Log($"[RENDER] ConnectValue = {connectValue}");
 
-        rt.localRotation = GetTileRotation(left, right, direction);
+        //  Detect whether this tile is visually reversed
+        // for the current path direction / connection
+        bool wasFlippedForConnection = false;
 
-        // Simple call — no flip params needed
+        if (connectValue != -1)
+        {
+            if (direction == Direction.Right)
+            {
+                // Normal right-going tile expects connect on left.
+                // If connect is currently on right, it is visually reversed.
+                wasFlippedForConnection = (right == connectValue);
+            }
+            else if (direction == Direction.Left)
+            {
+                // Normal left-going tile expects connect on right.
+                // If connect is currently on left, it is visually reversed.
+                wasFlippedForConnection = (left == connectValue);
+            }
+            else if (direction == Direction.Up)
+            {
+                // Normal up-going tile expects connect on bottom.
+                // In your current project logic that maps best to "left side"
+                // being the connected half. If the right side matches, invert.
+                wasFlippedForConnection = (right == connectValue);
+            }
+            else if (direction == Direction.Down)
+            {
+                // Normal down-going tile expects connect on top.
+                // Invert if left side is matching instead.
+                wasFlippedForConnection = (left == connectValue);
+            }
+        }
+
+        Debug.Log($"[RENDER] wasFlippedForConnection = {wasFlippedForConnection}");
+   
+        //  Use inverse direction AFTER flip
+        // This fixes cases like [6|3] moving Right but needing
+        // the opposite visual rotation.
+        Direction visualDirection = direction;
+
+        if (wasFlippedForConnection)
+        {
+            switch (direction)
+            {
+                case Direction.Right:
+                    visualDirection = Direction.Left;
+                    break;
+                case Direction.Left:
+                    visualDirection = Direction.Right;
+                    break;
+                case Direction.Up:
+                    visualDirection = Direction.Down;
+                    break;
+                case Direction.Down:
+                    visualDirection = Direction.Up;
+                    break;
+            }
+        }
+
+        Debug.Log($"[RENDER] visualDirection = {visualDirection}");
+
+        // STEP 3: Apply rotation using visual direction
+        rt.localRotation = GetTileRotation(left, right, direction, wasFlippedForConnection);
+
+        Debug.Log($"[RENDER] Final rotation z = {rt.localRotation.eulerAngles.z}");
+
+        // Keep your original sprite setup
         DominoTileUI ui = tileObj.GetComponent<DominoTileUI>();
         ui.Setup(left, right, owner.selectedSkin);
+
         rt.localScale = Vector3.one * scale;
         return tileObj;
     }
@@ -863,41 +967,56 @@ public class DominoTableView : MonoBehaviour
         }
     }
 
-    Quaternion GetTileRotation(int left, int right, Direction direction)
+    Quaternion GetTileRotation(int left, int right, Direction direction, bool flipped)
     {
         bool isDouble = left == right;
-        Quaternion result = Quaternion.identity;
 
         if (isDouble)
         {
-            result = Quaternion.Euler(0, 0, 0);
-            Debug.Log($"[ROTATION] Tile [{left}|{right}] is double -> {result.eulerAngles}");
-            return result;
+            Debug.Log($"[ROTATION] DOUBLE [{left}|{right}] -> 0");
+            return Quaternion.Euler(0, 0, 0);
         }
 
-        if (direction == Direction.Right)
+        int high = Mathf.Max(left, right);
+
+        switch (direction)
         {
-            bool highOnRight = (left > right);
-            result = Quaternion.Euler(0, 0, highOnRight ? -90 : 90);
-        }
-        else if (direction == Direction.Left)
-        {
-            bool highOnLeft = (right > left);
-            return Quaternion.Euler(0, 0, highOnLeft ? 90 : -90);
-        }
-        else if (direction == Direction.Down)
-        {
-            bool highOnTop = (left > right);
-            result = Quaternion.Euler(0, 0, highOnTop ? 180 : 0);
-        }
-        else if (direction == Direction.Up)
-        {
-            bool highOnTop = (right > left);
-            return Quaternion.Euler(0, 0, highOnTop ? 0 : 180);
+            case Direction.Right:
+                {
+                    bool highOnRight = (right == high);
+                    float z = (!flipped)
+                        ? (highOnRight ? 90 : -90)
+                        : (highOnRight ? -90 : 90);
+
+                    return Quaternion.Euler(0, 0, z);
+                }
+
+            case Direction.Left:
+                {
+                    bool highOnLeft = (left == high);
+                    float z = (!flipped)
+                        ? (highOnLeft ? -90 : 90)
+                        : (highOnLeft ? 90 : -90);
+
+                    return Quaternion.Euler(0, 0, z);
+                }
+
+            case Direction.Down:
+                {
+                    bool highOnTop = (left == high);
+                    float z = highOnTop ? 180 : 0;
+                    return Quaternion.Euler(0, 0, z);
+                }
+
+            case Direction.Up:
+                {
+                    bool highOnTop = (right == high);
+                    float z = highOnTop ? 0 : 180;
+                    return Quaternion.Euler(0, 0, z);
+                }
         }
 
-        Debug.Log($"[ROTATION] Tile [{left}|{right}] direction={direction} -> z={result.eulerAngles.z}");
-        return result;
+        return Quaternion.identity;
     }
 
     void GetPreviewTile(
